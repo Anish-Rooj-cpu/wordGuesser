@@ -11,8 +11,16 @@
         <header>
             <h1>Word Guessing Game</h1>
             <div class="game-setup">
-                <input type="text" id="game-id" placeholder="Enter Game ID (Seed)">
-                <button id="join-btn">Generate Board</button>
+                <input type="text" id="game-id" placeholder="Game ID" style="width: 100px;">
+                <select id="player-team">
+                    <option value="red">Red Team</option>
+                    <option value="blue">Blue Team</option>
+                </select>
+                <select id="player-role">
+                    <option value="guesser">Guesser</option>
+                    <option value="spymaster">Spymaster</option>
+                </select>
+                <button id="join-btn">Join Game</button>
             </div>
         </header>
 

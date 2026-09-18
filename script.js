@@ -45,7 +45,9 @@ let gameState = {
     blueLeft: 12,
     cards: [],
     gameOver: false,
-    seed: ''
+    seed: '',
+    myTeam: 'red',
+    myRole: 'guesser'
 };
 
 // DOM Elements
@@ -54,6 +56,8 @@ const redLeftEl = document.getElementById('red-left');
 const blueLeftEl = document.getElementById('blue-left');
 const turnIndicator = document.getElementById('turn-indicator');
 const gameIdInput = document.getElementById('game-id');
+const playerTeamSelect = document.getElementById('player-team');
+const playerRoleSelect = document.getElementById('player-role');
 const joinBtn = document.getElementById('join-btn');
 const spymasterToggleBtn = document.getElementById('spymaster-toggle');
 const endTurnBtn = document.getElementById('end-turn-btn');
@@ -73,6 +77,9 @@ function initGame() {
     }
     
     gameState.seed = seedStr;
+    gameState.myTeam = playerTeamSelect.value;
+    gameState.myRole = playerRoleSelect.value;
+    
     const seedGen = xmur3(seedStr);
     random = mulberry32(seedGen());
 
@@ -82,7 +89,20 @@ function initGame() {
     gameState.gameOver = false;
     gameState.cards = [];
     
+    // Role Enforcement
     document.body.classList.remove('spymaster');
+    if (gameState.myRole === 'guesser') {
+        spymasterToggleBtn.style.display = 'none';
+        hintWordInput.disabled = true;
+        hintNumberInput.disabled = true;
+        submitHintBtn.disabled = true;
+    } else {
+        spymasterToggleBtn.style.display = 'inline-block';
+        hintWordInput.disabled = false;
+        hintNumberInput.disabled = false;
+        submitHintBtn.disabled = false;
+    }
+    
     hintLog.innerHTML = '';
     gameOverModal.classList.add('hidden');
     
@@ -90,7 +110,7 @@ function initGame() {
     renderBoard();
     updateUI();
     
-    addSystemLog(`Game joined with ID: ${seedStr}`);
+    addSystemLog(`Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()} | Game ID: ${seedStr}`);
 }
 
 function generateCards() {
