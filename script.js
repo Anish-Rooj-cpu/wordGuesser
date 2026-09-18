@@ -1,3 +1,10 @@
+// REPLACE THESE WITH YOUR SUPABASE DETAILS
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+// Initialize Supabase Client
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const words = [
     "APPLE", "BANK", "BERLIN", "BOARD", "BOMB", "BOX", "BUG", "CAMP", "CARD", "CAT",
     "CHAIR", "CODE", "COLD", "DANCE", "DOG", "DRAGON", "EAGLE", "EYE", "FIRE", "FISH",
@@ -16,39 +23,20 @@ const words = [
     "CELL", "CENTAUR", "CENTER", "CHAIR", "CHANGE", "CHARGE", "CHECK", "CHEST", "CHICK", "CHINA"
 ];
 
-// Seeded PRNG (Mulberry32)
-function mulberry32(a) {
-    return function() {
-      var t = a += 0x6D2B79F5;
-      t = Math.imul(t ^ t >>> 15, t | 1);
-      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    }
-}
-
-// Generate a seed from string
-function xmur3(str) {
-    for(var i = 0, h = 1779033703 ^ str.length; i < str.length; i++) {
-        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-        h = h << 13 | h >>> 19;
-    } return function() {
-        h = Math.imul(h ^ h >>> 16, 2246822507);
-        h = Math.imul(h ^ h >>> 13, 3266489909);
-        return (h ^= h >>> 16) >>> 0;
-    }
-}
-
-let random; // Function to get random number
 let gameState = {
-    turn: 'red', // 'red' or 'blue'
+    game_code: '',
+    turn: 'red',
     redLeft: 12,
     blueLeft: 12,
     cards: [],
     gameOver: false,
-    seed: '',
+    winner: '',
+    chat_log: [],
     myTeam: 'red',
     myRole: 'guesser'
 };
+
+let realtimeSubscription = null;
 
 // DOM Elements
 const lobbyScreen = document.getElementById('lobby-screen');
@@ -81,39 +69,91 @@ const gameOverModal = document.getElementById('game-over-modal');
 const winnerText = document.getElementById('winner-text');
 const newGameBtn = document.getElementById('new-game-btn'); // Return to Lobby
 
-function startNewGame() {
-    const newSeed = Math.random().toString(36).substring(2, 8).toUpperCase();
+async function startNewGame() {
+    createBtn.disabled = true;
+    createBtn.textContent = 'Creating...';
+    
+    const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     gameState.myTeam = createTeamSelect.value;
     gameState.myRole = createRoleSelect.value;
-    initGame(newSeed);
+    
+    // Generate Cards
+    let shuffledWords = [...words].sort(() => Math.random() - 0.5);
+    const selectedWords = shuffledWords.slice(0, 25);
+    
+    let teams = [];
+    for(let i=0; i<12; i++) teams.push('red');
+    for(let i=0; i<12; i++) teams.push('blue');
+    teams.push('black');
+    teams.sort(() => Math.random() - 0.5);
+    
+    let generatedCards = [];
+    for (let i = 0; i < 25; i++) {
+        generatedCards.push({ word: selectedWords[i], team: teams[i], revealed: false });
+    }
+    
+    // Insert into Supabase
+    const { data, error } = await supabase
+        .from('games')
+        .insert([{
+            game_code: newCode,
+            board_cards: generatedCards,
+            turn: 'red',
+            red_left: 12,
+            blue_left: 12,
+            chat_log: [],
+            game_over: false,
+            winner_message: ''
+        }]);
+        
+    createBtn.disabled = false;
+    createBtn.textContent = 'Generate Game';
+        
+    if (error) {
+        alert("Error creating game: " + error.message);
+        return;
+    }
+    
+    await enterGame(newCode);
 }
 
-function joinExistingGame() {
-    let seedStr = joinIdInput.value.trim().toUpperCase();
-    if (!seedStr) {
+async function joinExistingGame() {
+    let codeStr = joinIdInput.value.trim().toUpperCase();
+    if (!codeStr) {
         alert("Please enter a Game Code to join.");
         return;
     }
+    
+    joinBtn.disabled = true;
+    joinBtn.textContent = 'Joining...';
+    
     gameState.myTeam = joinTeamSelect.value;
     gameState.myRole = joinRoleSelect.value;
-    initGame(seedStr);
+    
+    const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('game_code', codeStr)
+        .single();
+        
+    joinBtn.disabled = false;
+    joinBtn.textContent = 'Join Game';
+        
+    if (error || !data) {
+        alert("Game not found or error: " + (error ? error.message : 'Invalid code.'));
+        return;
+    }
+    
+    await enterGame(codeStr, data);
 }
 
-function initGame(seedStr) {
-    gameState.seed = seedStr;
-    const seedGen = xmur3(seedStr);
-    random = mulberry32(seedGen());
-
-    gameState.turn = 'red';
-    gameState.redLeft = 12;
-    gameState.blueLeft = 12;
-    gameState.gameOver = false;
-    gameState.cards = [];
+async function enterGame(codeStr, existingData = null) {
+    gameState.game_code = codeStr;
     
     // UI Transitions
     lobbyScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
-    displayGameId.textContent = seedStr;
+    displayGameId.textContent = codeStr;
     playerInfoBadge.textContent = `${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`;
     
     // Role Enforcement
@@ -124,49 +164,107 @@ function initGame(seedStr) {
     } else {
         spymasterToggleBtn.style.display = 'inline-block';
         hintControls.style.display = 'flex';
-        // Auto-enable spymaster view for spymasters
         document.body.classList.add('spymaster');
     }
     
-    hintLog.innerHTML = '';
     gameOverModal.classList.add('hidden');
     
-    generateCards();
-    renderBoard();
-    updateUI();
+    // Subscribe to realtime changes
+    if (realtimeSubscription) {
+        await supabase.removeChannel(realtimeSubscription);
+    }
     
-    addSystemLog(`Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`);
+    realtimeSubscription = supabase.channel('custom-all-channel')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games', filter: `game_code=eq.${codeStr}` },
+        (payload) => {
+            syncStateWithDB(payload.new);
+        }
+      )
+      .subscribe();
+      
+    // If we joined an existing game, sync the initial state immediately
+    if (existingData) {
+        syncStateWithDB(existingData);
+        logLocalSystemMessage(`Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`);
+    } else {
+        // We created a new game, we need to fetch the newly created data or just rely on local state
+        // Let's do a quick fetch to ensure sync
+        const { data } = await supabase.from('games').select('*').eq('game_code', codeStr).single();
+        if(data) syncStateWithDB(data);
+        
+        await broadcastSystemMessage(`Game created. Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`);
+    }
 }
 
-function generateCards() {
-    // Shuffle words
-    let shuffledWords = [...words];
-    for (let i = shuffledWords.length - 1; i > 0; i--) {
-        const j = Math.floor(random() * (i + 1));
-        [shuffledWords[i], shuffledWords[j]] = [shuffledWords[j], shuffledWords[i]];
+function syncStateWithDB(dbData) {
+    gameState.cards = dbData.board_cards;
+    gameState.turn = dbData.turn;
+    gameState.redLeft = dbData.red_left;
+    gameState.blueLeft = dbData.blue_left;
+    gameState.gameOver = dbData.game_over;
+    gameState.winner = dbData.winner_message;
+    gameState.chat_log = dbData.chat_log || [];
+    
+    renderBoard();
+    updateUI();
+    renderChatLog();
+    
+    if (gameState.gameOver) {
+        winnerText.textContent = gameState.winner;
+        winnerText.className = gameState.winner.includes('Red') ? 'red-win' : (gameState.winner.includes('Blue') ? 'blue-win' : '');
+        gameOverModal.classList.remove('hidden');
+    }
+}
+
+async function handleCardClick(index) {
+    if (gameState.gameOver) return;
+    const card = gameState.cards[index];
+    if (card.revealed) return;
+    
+    // Optimistic local update
+    card.revealed = true;
+    let nextTurn = gameState.turn;
+    let newRedLeft = gameState.redLeft;
+    let newBlueLeft = gameState.blueLeft;
+    let newGameOver = false;
+    let newWinnerMsg = '';
+    
+    if (card.team === 'red') {
+        newRedLeft--;
+        if (gameState.turn !== 'red') nextTurn = 'blue';
+    } else if (card.team === 'blue') {
+        newBlueLeft--;
+        if (gameState.turn !== 'blue') nextTurn = 'red';
+    } else if (card.team === 'black') {
+        newGameOver = true;
+        newWinnerMsg = 'Assassin revealed! ' + (gameState.turn === 'red' ? 'Blue' : 'Red') + ' Team Wins!';
+        gameState.cards.forEach(c => c.revealed = true);
     }
     
-    const selectedWords = shuffledWords.slice(0, 25);
-    
-    // Assign teams: 12 Red, 12 Blue, 1 Black
-    let teams = [];
-    for(let i=0; i<12; i++) teams.push('red');
-    for(let i=0; i<12; i++) teams.push('blue');
-    teams.push('black');
-    
-    // Shuffle teams
-    for (let i = teams.length - 1; i > 0; i--) {
-        const j = Math.floor(random() * (i + 1));
-        [teams[i], teams[j]] = [teams[j], teams[i]];
+    if (newRedLeft === 0) {
+        newGameOver = true;
+        newWinnerMsg = 'Red Team Wins!';
+        gameState.cards.forEach(c => c.revealed = true);
+    } else if (newBlueLeft === 0) {
+        newGameOver = true;
+        newWinnerMsg = 'Blue Team Wins!';
+        gameState.cards.forEach(c => c.revealed = true);
     }
     
-    for (let i = 0; i < 25; i++) {
-        gameState.cards.push({
-            word: selectedWords[i],
-            team: teams[i],
-            revealed: false
-        });
-    }
+    // Push update to Supabase
+    await supabase.from('games').update({
+        board_cards: gameState.cards,
+        turn: nextTurn,
+        red_left: newRedLeft,
+        blue_left: newBlueLeft,
+        game_over: newGameOver,
+        winner_message: newWinnerMsg
+    }).eq('game_code', gameState.game_code);
+    
+    // Realtime subscription will sync everyone else, 
+    // but we can optionally re-sync ourselves instantly (done automatically when payload arrives).
 }
 
 function renderBoard() {
@@ -188,40 +286,17 @@ function renderBoard() {
     });
 }
 
-function handleCardClick(index) {
+async function endTurn() {
     if (gameState.gameOver) return;
-    const card = gameState.cards[index];
-    if (card.revealed) return;
+    const nextTurn = gameState.turn === 'red' ? 'blue' : 'red';
     
-    card.revealed = true;
+    let updatedLog = [...gameState.chat_log];
+    updatedLog.push({ type: 'system', text: `${nextTurn.toUpperCase()} team's turn` });
     
-    if (card.team === 'red') {
-        gameState.redLeft--;
-        if (gameState.turn !== 'red') endTurn();
-    } else if (card.team === 'blue') {
-        gameState.blueLeft--;
-        if (gameState.turn !== 'blue') endTurn();
-    } else if (card.team === 'black') {
-        // Assassin clicked
-        endGame(gameState.turn === 'red' ? 'blue' : 'red', 'Assassin revealed!');
-        renderBoard();
-        return;
-    }
-    
-    renderBoard();
-    updateUI();
-    
-    if (gameState.redLeft === 0) {
-        endGame('red', 'Red Team Wins!');
-    } else if (gameState.blueLeft === 0) {
-        endGame('blue', 'Blue Team Wins!');
-    }
-}
-
-function endTurn() {
-    gameState.turn = gameState.turn === 'red' ? 'blue' : 'red';
-    addSystemLog(`${gameState.turn.toUpperCase()} team's turn`);
-    updateUI();
+    await supabase.from('games').update({
+        turn: nextTurn,
+        chat_log: updatedLog
+    }).eq('game_code', gameState.game_code);
 }
 
 function updateUI() {
@@ -237,21 +312,17 @@ function updateUI() {
     }
 }
 
-function endGame(winner, message) {
-    gameState.gameOver = true;
-    winnerText.textContent = message;
-    winnerText.className = winner === 'red' ? 'red-win' : 'blue-win';
+async function broadcastSystemMessage(msg) {
+    let updatedLog = [...gameState.chat_log];
+    updatedLog.push({ type: 'system', text: msg });
     
-    // Reveal all cards
-    gameState.cards.forEach(card => card.revealed = true);
-    renderBoard();
-    
-    setTimeout(() => {
-        gameOverModal.classList.remove('hidden');
-    }, 500);
+    await supabase.from('games').update({
+        chat_log: updatedLog
+    }).eq('game_code', gameState.game_code);
 }
 
-function addSystemLog(msg) {
+function logLocalSystemMessage(msg) {
+    // Only local, doesn't get saved to DB (useful for "You joined" messages)
     const el = document.createElement('div');
     el.className = 'hint-msg system';
     el.textContent = msg;
@@ -259,7 +330,23 @@ function addSystemLog(msg) {
     hintLog.scrollTop = hintLog.scrollHeight;
 }
 
-function submitHint() {
+function renderChatLog() {
+    hintLog.innerHTML = '';
+    gameState.chat_log.forEach(msg => {
+        const el = document.createElement('div');
+        if (msg.type === 'system') {
+            el.className = 'hint-msg system';
+            el.textContent = msg.text;
+        } else {
+            el.className = `hint-msg ${msg.team}`;
+            el.innerHTML = `<strong>${msg.team.toUpperCase()} Spymaster:</strong> ${msg.text}`;
+        }
+        hintLog.appendChild(el);
+    });
+    hintLog.scrollTop = hintLog.scrollHeight;
+}
+
+async function submitHint() {
     if (gameState.gameOver) return;
     
     const word = hintWordInput.value.trim();
@@ -267,12 +354,14 @@ function submitHint() {
     
     if (!word || !number) return;
     
-    const el = document.createElement('div');
-    el.className = `hint-msg ${gameState.turn}`;
-    el.innerHTML = `<strong>${gameState.turn.toUpperCase()} Spymaster:</strong> ${word.toUpperCase()} - ${number}`;
+    const hintString = `${word.toUpperCase()} - ${number}`;
     
-    hintLog.appendChild(el);
-    hintLog.scrollTop = hintLog.scrollHeight;
+    let updatedLog = [...gameState.chat_log];
+    updatedLog.push({ type: 'hint', team: gameState.myTeam, text: hintString });
+    
+    await supabase.from('games').update({
+        chat_log: updatedLog
+    }).eq('game_code', gameState.game_code);
     
     hintWordInput.value = '';
     hintNumberInput.value = '';
@@ -282,6 +371,7 @@ function submitHint() {
 createBtn.addEventListener('click', startNewGame);
 joinBtn.addEventListener('click', joinExistingGame);
 endTurnBtn.addEventListener('click', endTurn);
+
 spymasterToggleBtn.addEventListener('click', () => {
     document.body.classList.toggle('spymaster');
 });
@@ -294,7 +384,11 @@ hintNumberInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') submitHint();
 });
 
-newGameBtn.addEventListener('click', () => {
+newGameBtn.addEventListener('click', async () => {
+    if (realtimeSubscription) {
+        await supabase.removeChannel(realtimeSubscription);
+        realtimeSubscription = null;
+    }
     gameScreen.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
     gameOverModal.classList.add('hidden');
