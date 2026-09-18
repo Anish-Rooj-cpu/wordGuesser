@@ -434,7 +434,15 @@ async function submitHint() {
     
     if (!word || isNaN(number) || number < 0) return;
     
-    const hintString = `${word.toUpperCase()} - ${number}`;
+    // Hint cannot be any word on the board
+    const hintUpper = word.toUpperCase();
+    const boardWords = gameState.cards.map(c => c.word.toUpperCase());
+    if (boardWords.includes(hintUpper)) {
+        alert("Your hint cannot be a word that is on the board!");
+        return;
+    }
+    
+    const hintString = `${hintUpper} - ${number}`;
     
     let updatedLog = [...gameState.chat_log];
     updatedLog.push({ type: 'hint', team: gameState.myTeam, text: hintString });
