@@ -1,0 +1,14 @@
+{
+  "name": "wordguesser-tests",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only test tooling. The game itself stays vanilla HTML/CSS/JS with no build step.",
+  "scripts": {
+    "test": "node integration.test.mjs",
+    "dev": "node dev-server.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0",
+    "jsdom": "^26.0.0"
+  }
+}
