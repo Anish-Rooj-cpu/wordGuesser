@@ -33,7 +33,8 @@ let gameState = {
     winner: '',
     chat_log: [],
     myTeam: 'red',
-    myRole: 'guesser'
+    myRole: 'guesser',
+    guessesRemaining: 0
 };
 
 let realtimeSubscription = null;
@@ -105,7 +106,8 @@ async function startNewGame() {
             chat_log: [],
             game_over: false,
             winner_message: '',
-            players: { [roleKey]: true }
+            players: { [roleKey]: true },
+            guesses_remaining: 0
         }]);
         
     createBtn.disabled = false;
@@ -225,6 +227,7 @@ function syncStateWithDB(dbData) {
     gameState.gameOver = dbData.game_over;
     gameState.winner = dbData.winner_message;
     gameState.chat_log = dbData.chat_log || [];
+    gameState.guessesRemaining = dbData.guesses_remaining || 0;
     
     renderBoard();
     updateUI();
@@ -246,31 +249,50 @@ function syncStateWithDB(dbData) {
 
 async function handleCardClick(index) {
     if (gameState.gameOver) return;
-    if (gameState.myRole === 'spymaster') return; // Spymasters cannot select words
+    if (gameState.myRole === 'spymaster') return;
+    if (gameState.myTeam !== gameState.turn) return; // not your team's turn
+    if (gameState.guessesRemaining <= 0) return; // no guesses left, wait for hint
     
     const card = gameState.cards[index];
     if (card.revealed) return;
     
-    // Optimistic local update for instant UI feedback
+    // Reveal the card
     card.revealed = true;
     let nextTurn = gameState.turn;
     let newRedLeft = gameState.redLeft;
     let newBlueLeft = gameState.blueLeft;
     let newGameOver = false;
     let newWinnerMsg = '';
+    let newGuessesRemaining = gameState.guessesRemaining - 1;
+    let turnEnded = false;
     
     if (card.team === 'red') {
         newRedLeft--;
-        if (gameState.turn !== 'red') nextTurn = 'blue';
+        // If red clicked their own card during red's turn, keep going; otherwise end turn
+        if (gameState.turn !== 'red') { nextTurn = gameState.turn === 'red' ? 'blue' : 'red'; turnEnded = true; }
     } else if (card.team === 'blue') {
         newBlueLeft--;
-        if (gameState.turn !== 'blue') nextTurn = 'red';
+        if (gameState.turn !== 'blue') { nextTurn = gameState.turn === 'red' ? 'blue' : 'red'; turnEnded = true; }
     } else if (card.team === 'black') {
         newGameOver = true;
         newWinnerMsg = 'Assassin revealed! ' + (gameState.turn === 'red' ? 'Blue' : 'Red') + ' Team Wins!';
         gameState.cards.forEach(c => c.revealed = true);
     }
     
+    // Wrong team card → end turn immediately
+    if (!newGameOver && card.team !== gameState.turn && card.team !== 'black') {
+        nextTurn = gameState.turn === 'red' ? 'blue' : 'red';
+        newGuessesRemaining = 0;
+        turnEnded = true;
+    }
+    
+    // Out of guesses → end turn
+    if (!newGameOver && !turnEnded && newGuessesRemaining <= 0) {
+        nextTurn = gameState.turn === 'red' ? 'blue' : 'red';
+        newGuessesRemaining = 0;
+    }
+    
+    // Check win conditions
     if (newRedLeft === 0) {
         newGameOver = true;
         newWinnerMsg = '🎉 RED TEAM WINS! 🎉';
@@ -281,12 +303,13 @@ async function handleCardClick(index) {
         gameState.cards.forEach(c => c.revealed = true);
     }
     
-    // Update local state and UI immediately before waiting for DB
+    // Update local state and UI immediately (optimistic)
     gameState.turn = nextTurn;
     gameState.redLeft = newRedLeft;
     gameState.blueLeft = newBlueLeft;
     gameState.gameOver = newGameOver;
     gameState.winner = newWinnerMsg;
+    gameState.guessesRemaining = newGuessesRemaining;
     renderBoard();
     updateUI();
     
@@ -303,14 +326,15 @@ async function handleCardClick(index) {
         }
     }
     
-    // Push update to Supabase in the background
+    // Push to Supabase
     await db.from('games').update({
         board_cards: gameState.cards,
         turn: nextTurn,
         red_left: newRedLeft,
         blue_left: newBlueLeft,
         game_over: newGameOver,
-        winner_message: newWinnerMsg
+        winner_message: newWinnerMsg,
+        guesses_remaining: newGuessesRemaining
     }).eq('game_code', gameState.game_code);
 }
 
@@ -342,7 +366,8 @@ async function endTurn() {
     
     await db.from('games').update({
         turn: nextTurn,
-        chat_log: updatedLog
+        chat_log: updatedLog,
+        guesses_remaining: 0
     }).eq('game_code', gameState.game_code);
 }
 
@@ -350,12 +375,14 @@ function updateUI() {
     redLeftEl.textContent = gameState.redLeft;
     blueLeftEl.textContent = gameState.blueLeft;
     
+    const guessText = gameState.guessesRemaining > 0 ? ` (${gameState.guessesRemaining} left)` : '';
+    
     if (gameState.turn === 'red') {
-        turnIndicator.textContent = "Red's Turn";
-        turnIndicator.className = 'turn-indicator';
+        turnIndicator.textContent = "Red's Turn" + guessText;
+        turnIndicator.className = 'turn-pill';
     } else {
-        turnIndicator.textContent = "Blue's Turn";
-        turnIndicator.className = 'turn-indicator blue';
+        turnIndicator.textContent = "Blue's Turn" + guessText;
+        turnIndicator.className = 'turn-pill blue';
     }
 }
 
@@ -396,10 +423,16 @@ function renderChatLog() {
 async function submitHint() {
     if (gameState.gameOver) return;
     
-    const word = hintWordInput.value.trim();
-    const number = hintNumberInput.value.trim();
+    // Only the spymaster whose team's turn it is can send hints
+    if (gameState.myTeam !== gameState.turn) {
+        alert("It's not your team's turn!");
+        return;
+    }
     
-    if (!word || !number) return;
+    const word = hintWordInput.value.trim();
+    const number = parseInt(hintNumberInput.value.trim(), 10);
+    
+    if (!word || isNaN(number) || number < 0) return;
     
     const hintString = `${word.toUpperCase()} - ${number}`;
     
@@ -407,7 +440,8 @@ async function submitHint() {
     updatedLog.push({ type: 'hint', team: gameState.myTeam, text: hintString });
     
     await db.from('games').update({
-        chat_log: updatedLog
+        chat_log: updatedLog,
+        guesses_remaining: number
     }).eq('game_code', gameState.game_code);
     
     hintWordInput.value = '';
