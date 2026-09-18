@@ -394,7 +394,6 @@ function updateUI() {
 function updateActivePlayersUI(presenceState) {
     activePlayersList.innerHTML = '';
     
-    // presenceState is an object where keys are presence keys, and values are arrays of state objects
     for (const key in presenceState) {
         const presences = presenceState[key];
         for (const player of presences) {
@@ -402,7 +401,19 @@ function updateActivePlayersUI(presenceState) {
             li.className = `player-item ${player.team}-team`;
             
             const roleEmoji = player.role === 'spymaster' ? '🕵️' : '🎯';
-            li.innerHTML = `<span>${roleEmoji}</span> <strong>${player.name}</strong> <span>(${player.team} ${player.role})</span>`;
+            
+            const emojiSpan = document.createElement('span');
+            emojiSpan.textContent = roleEmoji + ' ';
+            
+            const nameEl = document.createElement('strong');
+            nameEl.textContent = player.name || 'Anonymous';
+            
+            const infoEl = document.createElement('span');
+            infoEl.textContent = ` (${player.team} ${player.role})`;
+            
+            li.appendChild(emojiSpan);
+            li.appendChild(nameEl);
+            li.appendChild(infoEl);
             
             activePlayersList.appendChild(li);
         }

@@ -306,6 +306,7 @@ body.spymaster .card.black:not(.revealed) { border-color: #555; background: #1a1
     padding: 15px 20px;
     border-bottom: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
+    flex-shrink: 0;
 }
 .players-list {
     list-style: none;
