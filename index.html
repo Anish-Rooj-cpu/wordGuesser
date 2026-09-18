@@ -3,116 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Guessing Game</title>
+    <title>Codenames — Word Guesser</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .hidden { display: none !important; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=4">
+    <style>.hidden { display: none !important; }</style>
 </head>
 <body>
-    <div class="container" id="lobby-screen">
-        <div class="lobby-card">
-            <h1>Word Guessing Game</h1>
-            <p>Welcome! Choose to create a new game or join an existing one.</p>
-            
-            <div class="lobby-sections">
-                <div class="lobby-section">
-                    <h2>Create New Game</h2>
-                    <label>Team:
+
+    <!-- ════════════════ LOBBY ════════════════ -->
+    <div id="lobby-screen">
+        <div class="lobby-wrapper">
+            <div class="lobby-brand">
+                <div class="lobby-logo">🕵️</div>
+                <h1>Codenames</h1>
+                <p>Create a game and share the code, or join an existing room.</p>
+            </div>
+
+            <div class="lobby-panels">
+                <!-- CREATE -->
+                <div class="lobby-panel">
+                    <div class="panel-header">
+                        <span class="panel-icon">✨</span>
+                        <h2>New Game</h2>
+                    </div>
+                    <div class="field">
+                        <label for="create-team">Team</label>
                         <select id="create-team">
-                            <option value="red">Red Team</option>
-                            <option value="blue">Blue Team</option>
+                            <option value="red">🔴  Red Team</option>
+                            <option value="blue">🔵  Blue Team</option>
                         </select>
-                    </label>
-                    <label>Role:
+                    </div>
+                    <div class="field">
+                        <label for="create-role">Role</label>
                         <select id="create-role">
-                            <option value="spymaster">Spymaster</option>
-                            <option value="guesser">Guesser</option>
+                            <option value="spymaster">🕵️  Spymaster</option>
+                            <option value="guesser">🎯  Guesser</option>
                         </select>
-                    </label>
-                    <button id="create-btn" class="primary-btn">Generate Game</button>
+                    </div>
+                    <button id="create-btn" class="btn btn-primary">Create Game</button>
                 </div>
-                
-                <div class="divider"></div>
-                
-                <div class="lobby-section">
-                    <h2>Join Game</h2>
-                    <label>Game Code:
-                        <input type="text" id="join-id" placeholder="e.g. ABCDEF">
-                    </label>
-                    <label>Team:
+
+                <div class="lobby-divider">
+                    <span>OR</span>
+                </div>
+
+                <!-- JOIN -->
+                <div class="lobby-panel">
+                    <div class="panel-header">
+                        <span class="panel-icon">🔗</span>
+                        <h2>Join Game</h2>
+                    </div>
+                    <div class="field">
+                        <label for="join-id">Game Code</label>
+                        <input type="text" id="join-id" placeholder="e.g. X7K2MQ" maxlength="6" spellcheck="false" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="join-team">Team</label>
                         <select id="join-team">
-                            <option value="red">Red Team</option>
-                            <option value="blue">Blue Team</option>
+                            <option value="red">🔴  Red Team</option>
+                            <option value="blue">🔵  Blue Team</option>
                         </select>
-                    </label>
-                    <label>Role:
+                    </div>
+                    <div class="field">
+                        <label for="join-role">Role</label>
                         <select id="join-role">
-                            <option value="guesser">Guesser</option>
-                            <option value="spymaster">Spymaster</option>
+                            <option value="guesser">🎯  Guesser</option>
+                            <option value="spymaster">🕵️  Spymaster</option>
                         </select>
-                    </label>
-                    <button id="join-btn" class="primary-btn">Join Game</button>
+                    </div>
+                    <button id="join-btn" class="btn btn-secondary">Join Game</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="container hidden" id="game-screen">
-        <header>
-            <div class="header-left">
-                <h1>Word Guesser</h1>
-                <span class="game-code-badge">Code: <strong id="display-game-id"></strong></span>
-                <span class="player-info-badge" id="player-info-badge"></span>
+    <!-- ════════════════ GAME ════════════════ -->
+    <div id="game-screen" class="hidden">
+        <!-- Top bar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <span class="topbar-brand">🕵️ Codenames</span>
+                <span class="badge badge-code" id="display-game-id"></span>
+                <span class="badge badge-role" id="player-info-badge"></span>
+            </div>
+            <div class="topbar-right">
+                <div class="scoreboard">
+                    <span class="score-red">🔴 <span id="red-left">12</span></span>
+                    <span class="turn-pill" id="turn-indicator">Red's Turn</span>
+                    <span class="score-blue">🔵 <span id="blue-left">12</span></span>
+                </div>
+                <button id="end-turn-btn" class="btn btn-end-turn">End Turn</button>
             </div>
         </header>
 
-        <div class="game-info">
-            <div class="score">
-                <span class="red-score">Red: <span id="red-left">12</span></span>
-                <span class="turn-indicator" id="turn-indicator">Red's Turn</span>
-                <span class="blue-score">Blue: <span id="blue-left">12</span></span>
-            </div>
-            
-            <div class="controls">
-                <button id="end-turn-btn">End Turn</button>
-            </div>
-        </div>
-
-        <div class="main-content">
-            <div class="board-container">
+        <!-- Board + Sidebar -->
+        <div class="game-body">
+            <div class="board-area">
                 <div id="board" class="board"></div>
             </div>
 
-            <div class="sidebar">
-                <div class="hint-section">
-                    <h3>Chat / Hints</h3>
-                    <div id="hint-log" class="hint-log"></div>
-                    <div class="hint-input-container" id="hint-controls">
-                        <input type="text" id="hint-word" placeholder="Hint word">
-                        <input type="number" id="hint-number" placeholder="#" min="0" max="12" style="width: 50px;">
-                        <button id="submit-hint">Send</button>
-                    </div>
+            <aside class="chat-panel">
+                <h3 class="chat-title">💬 Chat &amp; Hints</h3>
+                <div id="hint-log" class="chat-log"></div>
+                <div class="chat-input-row" id="hint-controls">
+                    <input type="text" id="hint-word" placeholder="Hint word…" spellcheck="false" autocomplete="off">
+                    <input type="number" id="hint-number" placeholder="#" min="0" max="12">
+                    <button id="submit-hint" class="btn btn-send">Send</button>
                 </div>
-            </div>
+            </aside>
         </div>
-        
-        <div id="game-over-modal" class="modal hidden">
-            <div class="modal-content">
+
+        <!-- Game-over modal -->
+        <div id="game-over-modal" class="overlay hidden">
+            <div class="modal-card">
                 <h2 id="winner-text"></h2>
-                <button id="new-game-btn">Return to Lobby</button>
+                <button id="new-game-btn" class="btn btn-primary">Return to Lobby</button>
             </div>
         </div>
     </div>
-    
+
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    
+
     <!-- Game Logic -->
-    <script src="script.js?v=3"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
