@@ -435,12 +435,9 @@ async function submitHint() {
     let updatedLog = [...gameState.chat_log];
     updatedLog.push({ type: 'hint', team: gameState.myTeam, text: hintString });
     
-    // In Codenames, guessers get N + 1 guesses to allow catching up on missed words
-    const allowedGuesses = number + 1;
-    
     await db.from('games').update({
         chat_log: updatedLog,
-        guesses_remaining: allowedGuesses
+        guesses_remaining: number
     }).eq('game_code', gameState.game_code);
     
     hintWordInput.value = '';
