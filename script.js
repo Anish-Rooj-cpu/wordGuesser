@@ -434,15 +434,13 @@ async function submitHint() {
     
     if (!word || isNaN(number) || number < 0) return;
     
-    // Hint cannot be or contain any word on the board (and vice versa)
+    // Hint cannot exactly match any unrevealed word on the board
     const hintUpper = word.toUpperCase();
     const boardWords = gameState.cards.filter(c => !c.revealed).map(c => c.word.toUpperCase());
     
-    for (let bWord of boardWords) {
-        if (hintUpper.includes(bWord) || bWord.includes(hintUpper)) {
-            alert(`Your hint cannot be or contain a part of an unrevealed word on the board (e.g., '${bWord}').`);
-            return;
-        }
+    if (boardWords.includes(hintUpper)) {
+        alert("Your hint cannot be a word that is currently on the board!");
+        return;
     }
     
     const hintString = `${hintUpper} - ${number}`;
