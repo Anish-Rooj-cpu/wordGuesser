@@ -51,35 +51,56 @@ let gameState = {
 };
 
 // DOM Elements
+const lobbyScreen = document.getElementById('lobby-screen');
+const gameScreen = document.getElementById('game-screen');
 const boardEl = document.getElementById('board');
 const redLeftEl = document.getElementById('red-left');
 const blueLeftEl = document.getElementById('blue-left');
 const turnIndicator = document.getElementById('turn-indicator');
-const gameIdInput = document.getElementById('game-id');
-const playerTeamSelect = document.getElementById('player-team');
-const playerRoleSelect = document.getElementById('player-role');
+const displayGameId = document.getElementById('display-game-id');
+const playerInfoBadge = document.getElementById('player-info-badge');
+
+// Lobby Elements
+const createTeamSelect = document.getElementById('create-team');
+const createRoleSelect = document.getElementById('create-role');
+const createBtn = document.getElementById('create-btn');
+const joinIdInput = document.getElementById('join-id');
+const joinTeamSelect = document.getElementById('join-team');
+const joinRoleSelect = document.getElementById('join-role');
 const joinBtn = document.getElementById('join-btn');
+
+// Game Elements
 const spymasterToggleBtn = document.getElementById('spymaster-toggle');
 const endTurnBtn = document.getElementById('end-turn-btn');
 const hintWordInput = document.getElementById('hint-word');
 const hintNumberInput = document.getElementById('hint-number');
 const submitHintBtn = document.getElementById('submit-hint');
+const hintControls = document.getElementById('hint-controls');
 const hintLog = document.getElementById('hint-log');
 const gameOverModal = document.getElementById('game-over-modal');
 const winnerText = document.getElementById('winner-text');
-const newGameBtn = document.getElementById('new-game-btn');
+const newGameBtn = document.getElementById('new-game-btn'); // Return to Lobby
 
-function initGame() {
-    let seedStr = gameIdInput.value.trim();
+function startNewGame() {
+    const newSeed = Math.random().toString(36).substring(2, 8).toUpperCase();
+    gameState.myTeam = createTeamSelect.value;
+    gameState.myRole = createRoleSelect.value;
+    initGame(newSeed);
+}
+
+function joinExistingGame() {
+    let seedStr = joinIdInput.value.trim().toUpperCase();
     if (!seedStr) {
-        seedStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-        gameIdInput.value = seedStr;
+        alert("Please enter a Game Code to join.");
+        return;
     }
-    
+    gameState.myTeam = joinTeamSelect.value;
+    gameState.myRole = joinRoleSelect.value;
+    initGame(seedStr);
+}
+
+function initGame(seedStr) {
     gameState.seed = seedStr;
-    gameState.myTeam = playerTeamSelect.value;
-    gameState.myRole = playerRoleSelect.value;
-    
     const seedGen = xmur3(seedStr);
     random = mulberry32(seedGen());
 
@@ -89,18 +110,22 @@ function initGame() {
     gameState.gameOver = false;
     gameState.cards = [];
     
+    // UI Transitions
+    lobbyScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    displayGameId.textContent = seedStr;
+    playerInfoBadge.textContent = `${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`;
+    
     // Role Enforcement
     document.body.classList.remove('spymaster');
     if (gameState.myRole === 'guesser') {
         spymasterToggleBtn.style.display = 'none';
-        hintWordInput.disabled = true;
-        hintNumberInput.disabled = true;
-        submitHintBtn.disabled = true;
+        hintControls.style.display = 'none';
     } else {
         spymasterToggleBtn.style.display = 'inline-block';
-        hintWordInput.disabled = false;
-        hintNumberInput.disabled = false;
-        submitHintBtn.disabled = false;
+        hintControls.style.display = 'flex';
+        // Auto-enable spymaster view for spymasters
+        document.body.classList.add('spymaster');
     }
     
     hintLog.innerHTML = '';
@@ -110,7 +135,7 @@ function initGame() {
     renderBoard();
     updateUI();
     
-    addSystemLog(`Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()} | Game ID: ${seedStr}`);
+    addSystemLog(`Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`);
 }
 
 function generateCards() {
@@ -254,7 +279,8 @@ function submitHint() {
 }
 
 // Event Listeners
-joinBtn.addEventListener('click', initGame);
+createBtn.addEventListener('click', startNewGame);
+joinBtn.addEventListener('click', joinExistingGame);
 endTurnBtn.addEventListener('click', endTurn);
 spymasterToggleBtn.addEventListener('click', () => {
     document.body.classList.toggle('spymaster');
@@ -269,9 +295,7 @@ hintNumberInput.addEventListener('keypress', (e) => {
 });
 
 newGameBtn.addEventListener('click', () => {
-    gameIdInput.value = ''; // clear seed to generate a new one
-    initGame();
+    gameScreen.classList.add('hidden');
+    lobbyScreen.classList.remove('hidden');
+    gameOverModal.classList.add('hidden');
 });
-
-// Start initial game
-initGame();

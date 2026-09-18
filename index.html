@@ -7,20 +7,60 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
+    <div class="container" id="lobby-screen">
+        <div class="lobby-card">
             <h1>Word Guessing Game</h1>
-            <div class="game-setup">
-                <input type="text" id="game-id" placeholder="Game ID" style="width: 100px;">
-                <select id="player-team">
-                    <option value="red">Red Team</option>
-                    <option value="blue">Blue Team</option>
-                </select>
-                <select id="player-role">
-                    <option value="guesser">Guesser</option>
-                    <option value="spymaster">Spymaster</option>
-                </select>
-                <button id="join-btn">Join Game</button>
+            <p>Welcome! Choose to create a new game or join an existing one.</p>
+            
+            <div class="lobby-sections">
+                <div class="lobby-section">
+                    <h2>Create New Game</h2>
+                    <label>Team:
+                        <select id="create-team">
+                            <option value="red">Red Team</option>
+                            <option value="blue">Blue Team</option>
+                        </select>
+                    </label>
+                    <label>Role:
+                        <select id="create-role">
+                            <option value="spymaster">Spymaster</option>
+                            <option value="guesser">Guesser</option>
+                        </select>
+                    </label>
+                    <button id="create-btn" class="primary-btn">Generate Game</button>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="lobby-section">
+                    <h2>Join Game</h2>
+                    <label>Game Code:
+                        <input type="text" id="join-id" placeholder="e.g. ABCDEF">
+                    </label>
+                    <label>Team:
+                        <select id="join-team">
+                            <option value="red">Red Team</option>
+                            <option value="blue">Blue Team</option>
+                        </select>
+                    </label>
+                    <label>Role:
+                        <select id="join-role">
+                            <option value="guesser">Guesser</option>
+                            <option value="spymaster">Spymaster</option>
+                        </select>
+                    </label>
+                    <button id="join-btn" class="primary-btn">Join Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container hidden" id="game-screen">
+        <header>
+            <div class="header-left">
+                <h1>Word Guesser</h1>
+                <span class="game-code-badge">Code: <strong id="display-game-id"></strong></span>
+                <span class="player-info-badge" id="player-info-badge"></span>
             </div>
         </header>
 
@@ -46,7 +86,7 @@
                 <div class="hint-section">
                     <h3>Chat / Hints</h3>
                     <div id="hint-log" class="hint-log"></div>
-                    <div class="hint-input-container">
+                    <div class="hint-input-container" id="hint-controls">
                         <input type="text" id="hint-word" placeholder="Hint word">
                         <input type="number" id="hint-number" placeholder="#" min="0" max="12" style="width: 50px;">
                         <button id="submit-hint">Send</button>
@@ -58,7 +98,7 @@
         <div id="game-over-modal" class="modal hidden">
             <div class="modal-content">
                 <h2 id="winner-text"></h2>
-                <button id="new-game-btn">Play Again</button>
+                <button id="new-game-btn">Return to Lobby</button>
             </div>
         </div>
     </div>
