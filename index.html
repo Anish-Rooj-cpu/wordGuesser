@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Guessing Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Word Guessing Game</h1>
+            <div class="game-setup">
+                <input type="text" id="game-id" placeholder="Enter Game ID (Seed)">
+                <button id="join-btn">Generate Board</button>
+            </div>
+        </header>
+
+        <div class="game-info">
+            <div class="score">
+                <span class="red-score">Red: <span id="red-left">12</span></span>
+                <span class="turn-indicator" id="turn-indicator">Red's Turn</span>
+                <span class="blue-score">Blue: <span id="blue-left">12</span></span>
+            </div>
+            
+            <div class="controls">
+                <button id="spymaster-toggle">Toggle Spymaster View</button>
+                <button id="end-turn-btn">End Turn</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="board-container">
+                <div id="board" class="board"></div>
+            </div>
+
+            <div class="sidebar">
+                <div class="hint-section">
+                    <h3>Chat / Hints</h3>
+                    <div id="hint-log" class="hint-log"></div>
+                    <div class="hint-input-container">
+                        <input type="text" id="hint-word" placeholder="Hint word">
+                        <input type="number" id="hint-number" placeholder="#" min="0" max="12" style="width: 50px;">
+                        <button id="submit-hint">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="game-over-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="winner-text"></h2>
+                <button id="new-game-btn">Play Again</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
