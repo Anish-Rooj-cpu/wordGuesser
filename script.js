@@ -3,7 +3,7 @@ const SUPABASE_URL = 'https://qarkceigmiwpmborlvbe.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhcmtjZWlnbWl3cG1ib3JsdmJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MjE1MDgsImV4cCI6MjEwNTI5NzUwOH0.PmSFZmX-ANSzc-gAf844rpMg8rFH-jbaHcw9e0Y17Bo';
 
 // Initialize Supabase Client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const words = [
     "APPLE", "BANK", "BERLIN", "BOARD", "BOMB", "BOX", "BUG", "CAMP", "CARD", "CAT",
@@ -92,7 +92,7 @@ async function startNewGame() {
     }
     
     // Insert into Supabase
-    const { data, error } = await supabase
+    const { data, error } = await db
         .from('games')
         .insert([{
             game_code: newCode,
@@ -129,7 +129,7 @@ async function joinExistingGame() {
     gameState.myTeam = joinTeamSelect.value;
     gameState.myRole = joinRoleSelect.value;
     
-    const { data, error } = await supabase
+    const { data, error } = await db
         .from('games')
         .select('*')
         .eq('game_code', codeStr)
@@ -168,10 +168,10 @@ async function enterGame(codeStr, existingData = null) {
     
     // Subscribe to realtime changes
     if (realtimeSubscription) {
-        await supabase.removeChannel(realtimeSubscription);
+        await db.removeChannel(realtimeSubscription);
     }
     
-    realtimeSubscription = supabase.channel('custom-all-channel')
+    realtimeSubscription = db.channel('custom-all-channel')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'games', filter: `game_code=eq.${codeStr}` },
@@ -188,7 +188,7 @@ async function enterGame(codeStr, existingData = null) {
     } else {
         // We created a new game, we need to fetch the newly created data or just rely on local state
         // Let's do a quick fetch to ensure sync
-        const { data } = await supabase.from('games').select('*').eq('game_code', codeStr).single();
+        const { data } = await db.from('games').select('*').eq('game_code', codeStr).single();
         if(data) syncStateWithDB(data);
         
         await broadcastSystemMessage(`Game created. Joined as ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()}`);
@@ -251,7 +251,7 @@ async function handleCardClick(index) {
     }
     
     // Push update to Supabase
-    await supabase.from('games').update({
+    await db.from('games').update({
         board_cards: gameState.cards,
         turn: nextTurn,
         red_left: newRedLeft,
@@ -290,7 +290,7 @@ async function endTurn() {
     let updatedLog = [...gameState.chat_log];
     updatedLog.push({ type: 'system', text: `${nextTurn.toUpperCase()} team's turn` });
     
-    await supabase.from('games').update({
+    await db.from('games').update({
         turn: nextTurn,
         chat_log: updatedLog
     }).eq('game_code', gameState.game_code);
@@ -313,7 +313,7 @@ async function broadcastSystemMessage(msg) {
     let updatedLog = [...gameState.chat_log];
     updatedLog.push({ type: 'system', text: msg });
     
-    await supabase.from('games').update({
+    await db.from('games').update({
         chat_log: updatedLog
     }).eq('game_code', gameState.game_code);
 }
@@ -356,7 +356,7 @@ async function submitHint() {
     let updatedLog = [...gameState.chat_log];
     updatedLog.push({ type: 'hint', team: gameState.myTeam, text: hintString });
     
-    await supabase.from('games').update({
+    await db.from('games').update({
         chat_log: updatedLog
     }).eq('game_code', gameState.game_code);
     
@@ -379,7 +379,7 @@ hintNumberInput.addEventListener('keypress', (e) => {
 
 newGameBtn.addEventListener('click', async () => {
     if (realtimeSubscription) {
-        await supabase.removeChannel(realtimeSubscription);
+        await db.removeChannel(realtimeSubscription);
         realtimeSubscription = null;
     }
     gameScreen.classList.add('hidden');
