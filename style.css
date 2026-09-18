@@ -220,10 +220,12 @@ body {
 /* ── Game Body (Board + Chat) ────────────────── */
 .game-body {
     display: flex; flex: 1; overflow: hidden;
+    max-width: 100vw;
 }
 
 .board-area {
     flex: 1;
+    min-width: 0; /* allow flex item to shrink below content size */
     display: flex; align-items: center; justify-content: center;
     padding: 24px;
     overflow: auto;
@@ -291,6 +293,7 @@ body.spymaster .card.black:not(.revealed) { border-color: #555; background: #1a1
     display: flex; flex-direction: column;
     background: var(--surface);
     border-left: 1px solid var(--border);
+    overflow: hidden;
 }
 
 .chat-title {
@@ -327,6 +330,7 @@ body.spymaster .card.black:not(.revealed) { border-color: #555; background: #1a1
     padding: 14px 16px;
     border-top: 1px solid var(--border);
     background: var(--surface-2);
+    flex-shrink: 0;
 }
 .chat-input-row input {
     padding: 9px 12px;
@@ -337,10 +341,11 @@ body.spymaster .card.black:not(.revealed) { border-color: #555; background: #1a1
     font-family: inherit; font-size: .88rem;
     outline: none;
     transition: border-color .2s;
+    min-width: 0; /* prevent input from overflowing flex container */
 }
 .chat-input-row input:focus { border-color: var(--accent); }
 #hint-word   { flex: 1; }
-#hint-number { width: 50px; text-align: center; }
+#hint-number { width: 50px; flex-shrink: 0; text-align: center; }
 
 /* ═══════════════════════════════════════════════
    GAME-OVER MODAL
