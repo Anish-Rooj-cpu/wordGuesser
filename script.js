@@ -58,7 +58,6 @@ const joinRoleSelect = document.getElementById('join-role');
 const joinBtn = document.getElementById('join-btn');
 
 // Game Elements
-const spymasterToggleBtn = document.getElementById('spymaster-toggle');
 const endTurnBtn = document.getElementById('end-turn-btn');
 const hintWordInput = document.getElementById('hint-word');
 const hintNumberInput = document.getElementById('hint-number');
@@ -159,10 +158,8 @@ async function enterGame(codeStr, existingData = null) {
     // Role Enforcement
     document.body.classList.remove('spymaster');
     if (gameState.myRole === 'guesser') {
-        spymasterToggleBtn.style.display = 'none';
         hintControls.style.display = 'none';
     } else {
-        spymasterToggleBtn.style.display = 'inline-block';
         hintControls.style.display = 'flex';
         document.body.classList.add('spymaster');
     }
@@ -371,10 +368,6 @@ async function submitHint() {
 createBtn.addEventListener('click', startNewGame);
 joinBtn.addEventListener('click', joinExistingGame);
 endTurnBtn.addEventListener('click', endTurn);
-
-spymasterToggleBtn.addEventListener('click', () => {
-    document.body.classList.toggle('spymaster');
-});
 
 submitHintBtn.addEventListener('click', submitHint);
 hintWordInput.addEventListener('keypress', (e) => {
