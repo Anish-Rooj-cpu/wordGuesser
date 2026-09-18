@@ -25,8 +25,12 @@
                 <!-- CREATE -->
                 <div class="lobby-panel">
                     <div class="panel-header">
-                        <span class="panel-icon">✨</span>
-                        <h2>New Game</h2>
+                        <span class="panel-icon">➕</span>
+                        <h2>Create Game</h2>
+                    </div>
+                    <div class="field">
+                        <label for="create-name">Your Name</label>
+                        <input type="text" id="create-name" placeholder="e.g. Alice" autocomplete="off">
                     </div>
                     <div class="field">
                         <label for="create-team">Team</label>
@@ -54,6 +58,10 @@
                     <div class="panel-header">
                         <span class="panel-icon">🔗</span>
                         <h2>Join Game</h2>
+                    </div>
+                    <div class="field">
+                        <label for="join-name">Your Name</label>
+                        <input type="text" id="join-name" placeholder="e.g. Bob" autocomplete="off">
                     </div>
                     <div class="field">
                         <label for="join-id">Game Code</label>
@@ -110,7 +118,13 @@
             </div>
 
             <aside class="chat-panel">
-                <h3 class="chat-title">💬 Chat &amp; Hints</h3>
+                <div class="players-section">
+                    <h3 class="chat-title">👥 Active Players</h3>
+                    <ul id="active-players-list" class="players-list">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+                <h3 class="chat-title" style="margin-top: 15px;">💬 Chat &amp; Hints</h3>
                 <div id="hint-log" class="chat-log"></div>
                 <div class="chat-input-row" id="hint-controls">
                     <input type="text" id="hint-word" placeholder="Hint word…" spellcheck="false" autocomplete="off">

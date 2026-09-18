@@ -18,7 +18,8 @@ let gameState = {
     chat_log: [],
     myTeam: 'red',
     myRole: 'guesser',
-    guessesRemaining: 0
+    guessesRemaining: 0,
+    myName: ''
 };
 
 let realtimeSubscription = null;
@@ -34,13 +35,17 @@ const displayGameId = document.getElementById('display-game-id');
 const playerInfoBadge = document.getElementById('player-info-badge');
 
 // Lobby Elements
+const createNameInput = document.getElementById('create-name');
 const createTeamSelect = document.getElementById('create-team');
 const createRoleSelect = document.getElementById('create-role');
 const createBtn = document.getElementById('create-btn');
+const joinNameInput = document.getElementById('join-name');
 const joinIdInput = document.getElementById('join-id');
 const joinTeamSelect = document.getElementById('join-team');
 const joinRoleSelect = document.getElementById('join-role');
 const joinBtn = document.getElementById('join-btn');
+
+const activePlayersList = document.getElementById('active-players-list');
 
 // Game Elements
 const endTurnBtn = document.getElementById('end-turn-btn');
@@ -55,6 +60,7 @@ const newGameBtn = document.getElementById('new-game-btn'); // Return to Lobby
 const playAgainBtn = document.getElementById('play-again-btn');
 
 async function startNewGame() {
+    gameState.myName = createNameInput.value.trim() || 'Anonymous';
     createBtn.disabled = true;
     createBtn.textContent = 'Creating...';
     
@@ -112,6 +118,8 @@ async function joinExistingGame() {
         alert("Please enter a Game Code to join.");
         return;
     }
+    
+    gameState.myName = joinNameInput.value.trim() || 'Anonymous';
     
     joinBtn.disabled = true;
     joinBtn.textContent = 'Joining...';
@@ -175,12 +183,24 @@ async function enterGame(codeStr, existingData = null) {
     
     gameOverModal.classList.add('hidden');
     
-    // Subscribe to realtime changes
+    // Subscribe to realtime changes and presence
     if (realtimeSubscription) {
         await db.removeChannel(realtimeSubscription);
     }
     
-    realtimeSubscription = db.channel('custom-all-channel')
+    realtimeSubscription = db.channel(`room-${codeStr}`, {
+      config: {
+        presence: {
+          key: gameState.myName + '_' + Math.random().toString(36).substring(7),
+        },
+      },
+    });
+
+    realtimeSubscription
+      .on('presence', { event: 'sync' }, () => {
+          const newState = realtimeSubscription.presenceState();
+          updateActivePlayersUI(newState);
+      })
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'games', filter: `game_code=eq.${codeStr}` },
@@ -188,7 +208,15 @@ async function enterGame(codeStr, existingData = null) {
             syncStateWithDB(payload.new);
         }
       )
-      .subscribe();
+      .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+              await realtimeSubscription.track({
+                  name: gameState.myName,
+                  team: gameState.myTeam,
+                  role: gameState.myRole
+              });
+          }
+      });
       
     // If we joined an existing game, sync the initial state immediately
     if (existingData) {
@@ -370,6 +398,24 @@ function updateUI() {
     } else {
         turnIndicator.textContent = "Blue's Turn" + guessText;
         turnIndicator.className = 'turn-pill blue';
+    }
+}
+
+function updateActivePlayersUI(presenceState) {
+    activePlayersList.innerHTML = '';
+    
+    // presenceState is an object where keys are presence keys, and values are arrays of state objects
+    for (const key in presenceState) {
+        const presences = presenceState[key];
+        for (const player of presences) {
+            const li = document.createElement('li');
+            li.className = `player-item ${player.team}-team`;
+            
+            const roleEmoji = player.role === 'spymaster' ? '🕵️' : '🎯';
+            li.innerHTML = `<span>${roleEmoji}</span> <strong>${player.name}</strong> <span>(${player.team} ${player.role})</span>`;
+            
+            activePlayersList.appendChild(li);
+        }
     }
 }
 

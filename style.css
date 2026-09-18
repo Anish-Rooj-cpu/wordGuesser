@@ -302,6 +302,30 @@ body.spymaster .card.black:not(.revealed) { border-color: #555; background: #1a1
     border-bottom: 1px solid var(--border);
 }
 
+.players-section {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+}
+.players-list {
+    list-style: none;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    max-height: 100px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.player-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.player-item.red-team { color: #fca5a5; }
+.player-item.blue-team { color: #93c5fd; }
+
 .chat-log {
     flex: 1; overflow-y: auto;
     padding: 16px;
