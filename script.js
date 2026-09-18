@@ -283,22 +283,12 @@ async function handleCardClick(index) {
     
     if (card.team === 'red') {
         newRedLeft--;
-        // If red clicked their own card during red's turn, keep going; otherwise end turn
-        if (gameState.turn !== 'red') { nextTurn = gameState.turn === 'red' ? 'blue' : 'red'; turnEnded = true; }
     } else if (card.team === 'blue') {
         newBlueLeft--;
-        if (gameState.turn !== 'blue') { nextTurn = gameState.turn === 'red' ? 'blue' : 'red'; turnEnded = true; }
     } else if (card.team === 'black') {
         newGameOver = true;
         newWinnerMsg = 'Assassin revealed! ' + (gameState.turn === 'red' ? 'Blue' : 'Red') + ' Team Wins!';
         gameState.cards.forEach(c => c.revealed = true);
-    }
-    
-    // Wrong team card → end turn immediately
-    if (!newGameOver && card.team !== gameState.turn && card.team !== 'black') {
-        nextTurn = gameState.turn === 'red' ? 'blue' : 'red';
-        newGuessesRemaining = 0;
-        turnEnded = true;
     }
     
     // Out of guesses → end turn
