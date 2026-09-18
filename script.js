@@ -91,6 +91,8 @@ async function startNewGame() {
         generatedCards.push({ word: selectedWords[i], team: teams[i], revealed: false });
     }
     
+    const roleKey = `${gameState.myTeam}_${gameState.myRole}`;
+    
     // Insert into Supabase
     const { data, error } = await db
         .from('games')
@@ -102,7 +104,8 @@ async function startNewGame() {
             blue_left: 12,
             chat_log: [],
             game_over: false,
-            winner_message: ''
+            winner_message: '',
+            players: { [roleKey]: true }
         }]);
         
     createBtn.disabled = false;
@@ -128,6 +131,7 @@ async function joinExistingGame() {
     
     gameState.myTeam = joinTeamSelect.value;
     gameState.myRole = joinRoleSelect.value;
+    const roleKey = `${gameState.myTeam}_${gameState.myRole}`;
     
     const { data, error } = await db
         .from('games')
@@ -135,13 +139,31 @@ async function joinExistingGame() {
         .eq('game_code', codeStr)
         .single();
         
-    joinBtn.disabled = false;
-    joinBtn.textContent = 'Join Game';
-        
     if (error || !data) {
+        joinBtn.disabled = false;
+        joinBtn.textContent = 'Join Game';
         alert("Game not found or error: " + (error ? error.message : 'Invalid code.'));
         return;
     }
+    
+    // Check if role is taken
+    let currentPlayers = data.players || {};
+    if (currentPlayers[roleKey]) {
+        // If it's taken, check if they are rejoining (we'll just let them in with a warning for simplicity)
+        const confirmRejoin = confirm(`The role ${gameState.myTeam.toUpperCase()} ${gameState.myRole.toUpperCase()} is already taken in this game. Are you rejoining?`);
+        if (!confirmRejoin) {
+            joinBtn.disabled = false;
+            joinBtn.textContent = 'Join Game';
+            return;
+        }
+    } else {
+        // Claim the role
+        currentPlayers[roleKey] = true;
+        await db.from('games').update({ players: currentPlayers }).eq('game_code', codeStr);
+    }
+    
+    joinBtn.disabled = false;
+    joinBtn.textContent = 'Join Game';
     
     await enterGame(codeStr, data);
 }
@@ -208,19 +230,28 @@ function syncStateWithDB(dbData) {
     updateUI();
     renderChatLog();
     
-    if (gameState.gameOver) {
+    if (gameState.gameOver && gameOverModal.classList.contains('hidden')) {
         winnerText.textContent = gameState.winner;
         winnerText.className = gameState.winner.includes('Red') ? 'red-win' : (gameState.winner.includes('Blue') ? 'blue-win' : '');
         gameOverModal.classList.remove('hidden');
+        if (window.confetti) {
+            confetti({
+                particleCount: 150,
+                spread: 80,
+                origin: { y: 0.6 }
+            });
+        }
     }
 }
 
 async function handleCardClick(index) {
     if (gameState.gameOver) return;
+    if (gameState.myRole === 'spymaster') return; // Spymasters cannot select words
+    
     const card = gameState.cards[index];
     if (card.revealed) return;
     
-    // Optimistic local update
+    // Optimistic local update for instant UI feedback
     card.revealed = true;
     let nextTurn = gameState.turn;
     let newRedLeft = gameState.redLeft;
@@ -242,15 +273,37 @@ async function handleCardClick(index) {
     
     if (newRedLeft === 0) {
         newGameOver = true;
-        newWinnerMsg = 'Red Team Wins!';
+        newWinnerMsg = '🎉 RED TEAM WINS! 🎉';
         gameState.cards.forEach(c => c.revealed = true);
     } else if (newBlueLeft === 0) {
         newGameOver = true;
-        newWinnerMsg = 'Blue Team Wins!';
+        newWinnerMsg = '🎉 BLUE TEAM WINS! 🎉';
         gameState.cards.forEach(c => c.revealed = true);
     }
     
-    // Push update to Supabase
+    // Update local state and UI immediately before waiting for DB
+    gameState.turn = nextTurn;
+    gameState.redLeft = newRedLeft;
+    gameState.blueLeft = newBlueLeft;
+    gameState.gameOver = newGameOver;
+    gameState.winner = newWinnerMsg;
+    renderBoard();
+    updateUI();
+    
+    if (newGameOver && gameOverModal.classList.contains('hidden')) {
+        winnerText.textContent = newWinnerMsg;
+        winnerText.className = newWinnerMsg.includes('RED') ? 'red-win' : (newWinnerMsg.includes('BLUE') ? 'blue-win' : '');
+        gameOverModal.classList.remove('hidden');
+        if (window.confetti) {
+            confetti({
+                particleCount: 150,
+                spread: 80,
+                origin: { y: 0.6 }
+            });
+        }
+    }
+    
+    // Push update to Supabase in the background
     await db.from('games').update({
         board_cards: gameState.cards,
         turn: nextTurn,
@@ -259,9 +312,6 @@ async function handleCardClick(index) {
         game_over: newGameOver,
         winner_message: newWinnerMsg
     }).eq('game_code', gameState.game_code);
-    
-    // Realtime subscription will sync everyone else, 
-    // but we can optionally re-sync ourselves instantly (done automatically when payload arrives).
 }
 
 function renderBoard() {
