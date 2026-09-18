@@ -68,6 +68,7 @@ const hintLog = document.getElementById('hint-log');
 const gameOverModal = document.getElementById('game-over-modal');
 const winnerText = document.getElementById('winner-text');
 const newGameBtn = document.getElementById('new-game-btn'); // Return to Lobby
+const playAgainBtn = document.getElementById('play-again-btn');
 
 async function startNewGame() {
     createBtn.disabled = true;
@@ -244,6 +245,8 @@ function syncStateWithDB(dbData) {
                 origin: { y: 0.6 }
             });
         }
+    } else if (!gameState.gameOver) {
+        gameOverModal.classList.add('hidden');
     }
 }
 
@@ -481,6 +484,43 @@ newGameBtn.addEventListener('click', async () => {
     gameScreen.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
     gameOverModal.classList.add('hidden');
+});
+
+playAgainBtn.addEventListener('click', async () => {
+    playAgainBtn.disabled = true;
+    playAgainBtn.textContent = 'Restarting...';
+    
+    // Generate new cards
+    let shuffledWords = [...words].sort(() => Math.random() - 0.5);
+    const selectedWords = shuffledWords.slice(0, 25);
+    
+    let teams = [];
+    for(let i=0; i<12; i++) teams.push('red');
+    for(let i=0; i<12; i++) teams.push('blue');
+    teams.push('black');
+    teams.sort(() => Math.random() - 0.5);
+    
+    let generatedCards = [];
+    for (let i = 0; i < 25; i++) {
+        generatedCards.push({ word: selectedWords[i], team: teams[i], revealed: false });
+    }
+    
+    // Update the existing row in Supabase
+    await db.from('games').update({
+        board_cards: generatedCards,
+        turn: 'red',
+        red_left: 12,
+        blue_left: 12,
+        chat_log: [{ type: 'system', text: 'Game restarted!' }],
+        game_over: false,
+        winner_message: '',
+        guesses_remaining: 0
+    }).eq('game_code', gameState.game_code);
+    
+    playAgainBtn.disabled = false;
+    playAgainBtn.textContent = '🔄 Play Again';
+    
+    // Realtime subscription will automatically pick up the change and sync State!
 });
 
 // Rules Modal Logic
