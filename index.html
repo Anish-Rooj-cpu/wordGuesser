@@ -76,6 +76,10 @@
                     <button id="join-btn" class="btn btn-secondary">Join Game</button>
                 </div>
             </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button id="rules-btn-lobby" class="btn btn-secondary">📖 How to Play</button>
+            </div>
         </div>
     </div>
 
@@ -87,6 +91,7 @@
                 <span class="topbar-brand">🕵️ Codenames</span>
                 <span class="badge badge-code" id="display-game-id"></span>
                 <span class="badge badge-role" id="player-info-badge"></span>
+                <button id="rules-btn-game" class="btn btn-secondary btn-small" style="margin-left: 10px; padding: 4px 10px; font-size: 0.8rem;">📖 Rules</button>
             </div>
             <div class="topbar-right">
                 <div class="scoreboard">
@@ -120,6 +125,32 @@
             <div class="modal-card">
                 <h2 id="winner-text"></h2>
                 <button id="new-game-btn" class="btn btn-primary">Return to Lobby</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rules modal -->
+    <div id="rules-modal" class="overlay hidden">
+        <div class="modal-card rules-card" style="text-align: left; max-width: 600px; padding: 40px;">
+            <h2 style="margin-bottom: 20px; font-size: 1.8rem;">📖 How to Play</h2>
+            <div class="rules-content" style="font-size: 0.95rem; line-height: 1.6; color: #e8eaed; max-height: 60vh; overflow-y: auto; padding-right: 15px;">
+                <p><strong>Goal:</strong> Be the first team to guess all your team's words.</p>
+                <ul style="margin-left: 20px; margin-top: 10px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
+                    <li>The <strong>Spymaster</strong> sees the true colors of all 25 cards (Red, Blue, Black, or Neutral).</li>
+                    <li>The <strong>Guessers</strong> only see the words and must try to guess which cards belong to their team based on the Spymaster's hints.</li>
+                    <li>The Spymaster gives a <strong>1-word hint</strong> and a <strong>number</strong> (e.g., <em>"Ocean - 2"</em>). The word must relate to cards on the board, and the number tells the guessers how many cards relate to that hint.</li>
+                    <li>Guessers can make up to <strong>N + 1</strong> guesses (where N is the number given by the Spymaster).</li>
+                    <li>If a guesser selects the <strong>other team's card</strong> or a <strong>neutral card</strong>, their turn ends immediately.</li>
+                    <li>If a guesser selects the <strong>Assassin (Black card)</strong>, their team instantly loses!</li>
+                </ul>
+                <p style="margin-bottom: 10px;"><strong>Spymaster Restrictions:</strong></p>
+                <ul style="margin-left: 20px; display: flex; flex-direction: column; gap: 8px;">
+                    <li>The hint must be exactly one word.</li>
+                    <li>You cannot use any word (or part of a word) that is currently unrevealed on the board.</li>
+                </ul>
+            </div>
+            <div style="text-align: right; margin-top: 30px;">
+                <button id="close-rules-btn" class="btn btn-primary">Got it!</button>
             </div>
         </div>
     </div>

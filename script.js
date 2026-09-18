@@ -484,3 +484,13 @@ newGameBtn.addEventListener('click', async () => {
     lobbyScreen.classList.remove('hidden');
     gameOverModal.classList.add('hidden');
 });
+
+// Rules Modal Logic
+const rulesModal = document.getElementById('rules-modal');
+const rulesBtnLobby = document.getElementById('rules-btn-lobby');
+const rulesBtnGame = document.getElementById('rules-btn-game');
+const closeRulesBtn = document.getElementById('close-rules-btn');
+
+rulesBtnLobby.addEventListener('click', () => rulesModal.classList.remove('hidden'));
+rulesBtnGame.addEventListener('click', () => rulesModal.classList.remove('hidden'));
+closeRulesBtn.addEventListener('click', () => rulesModal.classList.add('hidden'));
