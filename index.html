@@ -4,19 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Codenames — Word Guesser</title>
+    <meta name="description" content="Real-time multiplayer Codenames-style word guessing game.">
+    <meta name="theme-color" content="#0f1117">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
-    <style>.hidden { display: none !important; }</style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <!-- ════════════════ LOBBY ════════════════ -->
     <div id="lobby-screen">
-        <div class="lobby-wrapper">
+        <div class="lobby-wrapper" role="main">
             <div class="lobby-brand">
-                <div class="lobby-logo">🕵️</div>
+                <div class="lobby-logo" aria-hidden="true">🕵️</div>
                 <h1>Codenames</h1>
                 <p>Create a game and share the code, or join an existing room.</p>
             </div>
@@ -25,7 +27,7 @@
                 <!-- CREATE -->
                 <div class="lobby-panel">
                     <div class="panel-header">
-                        <span class="panel-icon">➕</span>
+                        <span class="panel-icon" aria-hidden="true">➕</span>
                         <h2>Create Game</h2>
                     </div>
                     <div class="field">
@@ -33,10 +35,20 @@
                         <input type="text" id="create-name" placeholder="e.g. Alice" autocomplete="off">
                     </div>
                     <div class="field">
+                        <label for="create-teams">Teams</label>
+                        <select id="create-teams">
+                            <option value="2">2 teams (5×5)</option>
+                            <option value="3">3 teams (6×6)</option>
+                            <option value="4">4 teams (7×7)</option>
+                        </select>
+                    </div>
+                    <div class="field">
                         <label for="create-team">Team</label>
                         <select id="create-team">
-                            <option value="red">🔴  Red Team</option>
-                            <option value="blue">🔵  Blue Team</option>
+                            <option value="red">🔴  Red</option>
+                            <option value="blue">🔵  Blue</option>
+                            <option value="green">🟢  Green</option>
+                            <option value="cyan">🩵  Cyan</option>
                         </select>
                     </div>
                     <div class="field">
@@ -56,7 +68,7 @@
                 <!-- JOIN -->
                 <div class="lobby-panel">
                     <div class="panel-header">
-                        <span class="panel-icon">🔗</span>
+                        <span class="panel-icon" aria-hidden="true">🔗</span>
                         <h2>Join Game</h2>
                     </div>
                     <div class="field">
@@ -70,8 +82,10 @@
                     <div class="field">
                         <label for="join-team">Team</label>
                         <select id="join-team">
-                            <option value="red">🔴  Red Team</option>
-                            <option value="blue">🔵  Blue Team</option>
+                            <option value="red">🔴  Red</option>
+                            <option value="blue">🔵  Blue</option>
+                            <option value="green">🟢  Green</option>
+                            <option value="cyan">🩵  Cyan</option>
                         </select>
                     </div>
                     <div class="field">
@@ -85,7 +99,7 @@
                 </div>
             </div>
             
-            <div style="text-align: center; margin-top: 30px;">
+            <div class="lobby-footer">
                 <button id="rules-btn-lobby" class="btn btn-secondary">📖 How to Play</button>
             </div>
         </div>
@@ -96,87 +110,98 @@
         <!-- Top bar -->
         <header class="topbar">
             <div class="topbar-left">
-                <span class="topbar-brand">🕵️ Codenames</span>
+                <h1 class="topbar-brand">🕵️ Codenames</h1>
                 <span class="badge badge-code" id="display-game-id"></span>
                 <span class="badge badge-role" id="player-info-badge"></span>
-                <button id="rules-btn-game" class="btn btn-secondary btn-small" style="margin-left: 10px; padding: 4px 10px; font-size: 0.8rem;">📖 Rules</button>
+                <button id="rules-btn-game" class="btn btn-secondary btn-small">📖 Rules</button>
+                <button id="leave-btn" class="btn btn-secondary btn-small">Leave</button>
             </div>
             <div class="topbar-right">
-                <div class="scoreboard">
-                    <span class="score-red">🔴 <span id="red-left">12</span></span>
-                    <span class="turn-pill" id="turn-indicator">Red's Turn</span>
-                    <span class="score-blue">🔵 <span id="blue-left">12</span></span>
-                </div>
+                <div class="scoreboard" id="scoreboard" role="group" aria-label="Scoreboard"></div>
                 <button id="end-turn-btn" class="btn btn-end-turn">End Turn</button>
             </div>
         </header>
 
         <!-- Board + Sidebar -->
         <div class="game-body">
-            <div class="board-area">
-                <div id="board" class="board"></div>
+            <div class="board-area" role="main">
+                <div id="board" class="board" role="group" aria-label="Word board" tabindex="-1"></div>
+                <div id="connect-error" class="connect-error hidden" role="alert">
+                    <p>Couldn't connect to the room.</p>
+                    <div class="modal-actions">
+                        <button id="connect-retry" class="btn btn-primary">Retry</button>
+                        <button id="connect-leave" class="btn btn-secondary">Back to lobby</button>
+                    </div>
+                </div>
             </div>
 
-            <aside class="chat-panel">
+            <aside class="chat-panel" aria-label="Players and chat">
                 <div class="players-section">
-                    <h3 class="chat-title">👥 Active Players</h3>
-                    <ul id="active-players-list" class="players-list">
+                    <h2 class="chat-title">👥 Active Players</h2>
+                    <ul id="active-players-list" class="players-list" aria-label="Active players">
                         <!-- Populated dynamically -->
                     </ul>
                 </div>
-                <h3 class="chat-title" style="margin-top: 15px;">💬 Chat &amp; Hints</h3>
-                <div id="hint-log" class="chat-log"></div>
-                <div class="chat-input-row" id="hint-controls">
-                    <input type="text" id="hint-word" placeholder="Hint word…" spellcheck="false" autocomplete="off">
-                    <input type="number" id="hint-number" placeholder="#" min="0" max="12">
-                    <button id="submit-hint" class="btn btn-send">Send</button>
+                <h2 class="chat-title">💬 Chat &amp; Hints</h2>
+                <div id="chat-log" class="chat-log" role="log" aria-live="off" aria-label="Chat and hints" tabindex="0"></div>
+                <div class="chat-input-row hidden" id="hint-controls">
+                    <label class="sr-only" for="hint-word">Hint word</label>
+                    <input type="text" id="hint-word" maxlength="20" placeholder="One-word hint (≤20)" autocomplete="off" spellcheck="false">
+                    <label class="sr-only" for="hint-number">Number</label>
+                    <input type="number" id="hint-number" min="1" placeholder="#">
+                    <button id="submit-hint" class="btn btn-send">Hint</button>
+                </div>
+                <div class="chat-input-row hidden" id="chat-controls">
+                    <label class="sr-only" for="chat-text">Message</label>
+                    <input type="text" id="chat-text" maxlength="200" placeholder="Message everyone…" autocomplete="off">
+                    <button id="submit-chat" class="btn btn-send">Send</button>
                 </div>
             </aside>
         </div>
 
         <!-- Game-over modal -->
-        <div id="game-over-modal" class="overlay hidden">
+        <div id="game-over-modal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="winner-text" aria-describedby="winner-desc">
             <div class="modal-card">
+                <p id="winner-desc" class="sr-only">Choose Play Again to restart, or Return to Lobby.</p>
                 <h2 id="winner-text"></h2>
-                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                <div class="modal-actions">
                     <button id="play-again-btn" class="btn btn-primary">🔄 Play Again</button>
-                    <button id="new-game-btn" class="btn btn-secondary">Return to Lobby</button>
+                    <button id="return-lobby-btn" class="btn btn-secondary">Return to Lobby</button>
                 </div>
             </div>
         </div>
     </div>
     
     <!-- Rules modal -->
-    <div id="rules-modal" class="overlay hidden">
-        <div class="modal-card rules-card" style="text-align: left; max-width: 600px; padding: 40px;">
-            <h2 style="margin-bottom: 20px; font-size: 1.8rem;">📖 How to Play</h2>
-            <div class="rules-content" style="font-size: 0.95rem; line-height: 1.6; color: #e8eaed; max-height: 60vh; overflow-y: auto; padding-right: 15px;">
-                <p><strong>Goal:</strong> Be the first team to guess all your team's words.</p>
-                <ul style="margin-left: 20px; margin-top: 10px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
-                    <li>The <strong>Spymaster</strong> sees the true colors of all 25 cards (Red, Blue, Black, or Neutral).</li>
-                    <li>The <strong>Guessers</strong> only see the words and must try to guess which cards belong to their team based on the Spymaster's hints.</li>
-                    <li>The Spymaster gives a <strong>1-word hint</strong> and a <strong>number</strong> (e.g., <em>"Ocean - 2"</em>). The word must relate to cards on the board, and the number tells the guessers how many cards relate to that hint.</li>
-                    <li>Guessers can make exactly that many guesses (e.g., if the number is 2, you get 2 guesses).</li>
-                    <li>If a guesser selects the <strong>other team's card</strong> or a <strong>neutral card</strong>, their turn ends immediately.</li>
-                    <li>If a guesser selects the <strong>Assassin (Black card)</strong>, their team instantly loses!</li>
-                </ul>
-                <p style="margin-bottom: 10px;"><strong>Spymaster Restrictions:</strong></p>
-                <ul style="margin-left: 20px; display: flex; flex-direction: column; gap: 8px;">
-                    <li>The hint must be exactly one word.</li>
-                    <li>You cannot use any word (or part of a word) that is currently unrevealed on the board.</li>
+    <div id="rules-modal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rules-title" aria-describedby="rules-desc">
+        <div class="modal-card rules-card">
+            <h2 id="rules-title">📖 How to Play</h2>
+            <div class="rules-content" id="rules-desc" tabindex="0">
+                <p><strong>Goal:</strong> Reveal all your team's words before the others do.</p>
+                <ul class="rules-list">
+                    <li><strong>2 teams:</strong> 5×5 board — 8 words per team, 8 yellow neutrals, 1 assassin. <strong>3 teams:</strong> 6×6 — 8 per team, 10 neutrals, 2 assassins. <strong>4 teams:</strong> 7×7 — 9 per team, 10 neutrals, 3 assassins.</li>
+                    <li>The <strong>Spymaster</strong> sees all colours and gives <strong>ONE word</strong> (max 20 letters) plus a <strong>number</strong> (e.g. <em>"Ocean - 2"</em>), only when their team has no guesses left. The word cannot be a word on the board.</li>
+                    <li>The <strong>Guessers</strong> get exactly that many guesses. Your own team's card: keep going. Another team's card or a yellow neutral: your turn ends (a neutral gives no penalty and no point).</li>
+                    <li><strong>Assassin:</strong> your team is eliminated; the other teams keep playing.</li>
+                    <li>A team wins by revealing all its words (whoever revealed the last one) or by being the last team not eliminated.</li>
+                    <li>Guessers of all teams can chat; Spymasters can only send hints.</li>
                 </ul>
             </div>
-            <div style="text-align: right; margin-top: 30px;">
+            <div class="rules-footer">
                 <button id="close-rules-btn" class="btn btn-primary">Got it!</button>
             </div>
         </div>
     </div>
 
+    <div id="toast" class="toast hidden" aria-hidden="true"></div>
+    <div id="sr-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
     <!-- External Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0" integrity="sha384-JBR+x8blGwjDRO63aHCGiZMD4VNiTR4ZUGA+N6ZKLf3zNt1fK8IBpcgPaMrxqWBp" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js" integrity="sha384-HAH79XdRvHr6axVGh4xQWVCp14kcd32bNk4Xu0sHDHtFQ42n6BAM8ykvB47dGz6D" crossorigin="anonymous"></script>
 
     <!-- Game Logic -->
-    <script src="script.js?v=4"></script>
+    <script src="game-core.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 // Browser-side stand-in for supabase-js, talking to tests/dev-server.mjs. Served by the dev server only.
 (() => {
-    const post = (url, body) => fetch(url, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.json());
+    const post = (url, body) => fetch(url, { method: 'POST', body: JSON.stringify(body) })
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+        .catch((e) => ({ data: null, error: { message: 'Network error: ' + e.message } })); // like supabase-js: errors come back, not thrown
     const client = {
         from() {
             const q = {};

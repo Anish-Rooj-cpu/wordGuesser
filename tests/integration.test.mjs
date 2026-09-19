@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const html = fs.readFileSync(`${ROOT}/index.html`, 'utf8').replace(/<script[\s\S]*?<\/script>/g, '');
-const js = fs.readFileSync(`${ROOT}/script.js`, 'utf8');
+const js = fs.readFileSync(`${ROOT}/game-core.js`, 'utf8') + '\n' + fs.readFileSync(`${ROOT}/script.js`, 'utf8'); // same order as index.html
 
 const be = await createBackend();
 const pg = be.pg;
@@ -28,34 +28,51 @@ const firePresence = (name) => channels.forEach((ch) => {
     if (ch.name === name) ch.handlers.filter((h) => h.type === 'presence').forEach((h) => h.cb());
 });
 
-function makeClient() {
+const net = { offline: new Set(), failSubscribe: new Set(), subscribes: {}, hook: null, delay: null }; // per-owner outage switch + subscribe attempt counter
+let SCALE = 1; // >1 shrinks every page timer (backoff tests)
+const offlineErr = { data: null, error: { message: 'offline' } };
+
+function makeClient(owner) {
     return {
         from: () => {
             const q = { row: null, code: null };
             q.insert = (row) => { q.row = row; return q; };
             q.select = () => q;
             q.eq = (c, v) => { q.code = v; return q; };
-            const run = () => (q.row ? be.insert(q.row) : be.select(q.code));
+            const run = async () => (net.offline.has(owner) ? offlineErr : q.row ? be.insert(q.row) : be.select(q.code));
             q.maybeSingle = run;
             q.single = async () => { const r = await run(); return r.error || r.data ? r : { data: null, error: { message: 'no rows' } }; };
             return q;
         },
         rpc: async (name, args) => {
+            if (net.offline.has(owner)) return offlineErr;
             const r = await be.rpc(name, args);
+            const h = net.hook && net.hook.owner === owner && net.hook.name === name && r.data ? net.hook : null;
+            if (h) { // connection dies exactly as this RPC resolves: server applied it, this client's channel is gone for the echo
+                net.hook = null; net.offline.add(owner); drop({ label: owner });
+                emit(r.data); // everyone else still hears it
+                return h.loseResponse ? offlineErr : r;
+            }
             if (r.data) emit(r.data);
+            if (net.delay && net.delay.owner === owner && net.delay.name === name) { const ms = net.delay.ms; net.delay = null; await sleep(ms); } // slow HTTP response
             return r;
         },
         channel(name, cfg) {
             const ch = {
-                name, key: cfg?.config?.presence?.key, handlers: [], presence: null,
+                name, owner, key: cfg?.config?.presence?.key, handlers: [], presence: null, cb: null,
                 on(type, opts, cb) { ch.handlers.push({ type, opts, cb }); return ch; },
-                subscribe(cb) { channels.add(ch); setTimeout(() => cb('SUBSCRIBED'), 0); return ch; },
+                subscribe(cb) {
+                    ch.cb = cb;
+                    net.subscribes[owner] = (net.subscribes[owner] || 0) + 1;
+                    if (net.offline.has(owner) || net.failSubscribe.has(owner)) { setTimeout(() => cb('TIMED_OUT'), 0); return ch; }
+                    channels.add(ch); setTimeout(() => cb('SUBSCRIBED'), 0); return ch;
+                },
                 async track(p) { ch.presence = p; firePresence(name); },
                 presenceState() { const s = {}; channels.forEach((c) => { if (c.name === name && c.presence) s[c.key] = [c.presence]; }); return s; }
             };
             return ch;
         },
-        removeChannel: async (ch) => { channels.delete(ch); firePresence(ch.name); }
+        removeChannel: async (ch) => { channels.delete(ch); firePresence(ch.name); setTimeout(() => ch.cb && ch.cb('CLOSED'), 0); } // like supabase-js
     };
 }
 
@@ -67,7 +84,8 @@ function mkPlayer(label, { url = 'http://localhost/', session } = {}) {
     const w = dom.window;
     w.confettiCalls = 0;
     w.confetti = () => { w.confettiCalls++; };
-    w.supabase = { createClient: () => makeClient() };
+    if (SCALE !== 1) w.setTimeout = (f, ms, ...a) => setTimeout(f, ms / SCALE, ...a);
+    w.supabase = { createClient: () => makeClient(label) };
     if (session) w.sessionStorage.setItem('wg_session', JSON.stringify(session));
     const ctx = dom.getInternalVMContext();
     const run = (code) => new vm.Script(code).runInContext(ctx);
@@ -351,6 +369,448 @@ L.P.red.gu.click('play-again-btn'); await settle();
 await playToEnd(L, '4t');
 st = s(L);
 check('4t: win by clearing all 9 own cards', st.gameOver && st.cardsLeft[st.winner] === 0 && st.cards.every((x) => x.revealed));
+
+// ═════════ S4: reconnect / refresh / tab close ═════════
+console.log('\n== S4: subscription + reconnect ==');
+SCALE = 100; // 1s backoff = 10ms in the pages under test
+const roster = (p) => p.doc.querySelectorAll('#active-players-list li').length;
+const inRoom = (code) => [...channels].filter((c) => c.name === `room-${code}`).length;
+const owned = (p, code) => [...channels].filter((c) => c.owner === p.label && c.name === `room-${code}`).length;
+const drop = (p) => { [...channels].filter((c) => c.owner === p.label).forEach((c) => { channels.delete(c); firePresence(c.name); c.cb('CLOSED'); }); };
+const closeTab = (p) => { [...channels].filter((c) => c.owner === p.label).forEach((c) => { channels.delete(c); firePresence(c.name); }); p.w.close(); };
+async function room2(pfx) {
+    const A = await create(pfx + 'A', 2, 'red', 'spymaster'), code = A.st.code;
+    const B = await join(pfx + 'B', code, 'red', 'guesser');
+    const C = await join(pfx + 'C', code, 'blue', 'spymaster');
+    const D = await join(pfx + 'D', code, 'blue', 'guesser');
+    return { code, all: [A, B, C, D], P: { red: { spy: A, gu: B }, blue: { spy: C, gu: D } } };
+}
+
+// ── a) drop + outage + recovery ──
+{
+    const R = await room2('a-'); const [A, B, C, D] = R.all; const bob = D;
+    check('s4a: 1 channel per player after join (4 in room)', inRoom(R.code) === 4 && R.all.every((p) => owned(p, R.code) === 1));
+    net.offline.add(bob.label); drop(bob);
+    await sleep(15);
+    const line = bob.doc.querySelector('.reconnecting');
+    check('s4a: "Reconnecting…" line shown', line && line.textContent === 'Reconnecting…' && line.classList.contains('system'));
+    check('s4a: presence roster shrinks to 3 in other tabs', [A, B, C].every((p) => roster(p) === 3));
+    bob.ev('renderChat()');
+    check('s4a: line survives chat re-render (last child)', bob.doc.getElementById('chat-log').lastChild === bob.doc.querySelector('.reconnecting'));
+    await sleep(150); // several failed attempts
+    check('s4a: retries happening w/ backoff, none leave a live channel', net.subscribes[bob.label] >= 4 && owned(bob, R.code) === 0 && inRoom(R.code) === 3, `${net.subscribes[bob.label]} ${inRoom(R.code)}`);
+    // a move Bob misses while away
+    const T = A.st.turn; await hint(R, T, 'ZEPHYRIA', 1);
+    check('s4a: Bob missed the hint while offline', bob.st.guessesRemaining === 0 && A.st.guessesRemaining === 1);
+    bob.ev('let __n = 0; const __o = renderBoard; renderBoard = function () { __n++; return __o(); }');
+    net.offline.delete(bob.label);
+    await sleep(700);
+    check('s4a: reconnected: line removed, exactly 1 channel owned, 4 in room', !bob.doc.querySelector('.reconnecting') && owned(bob, R.code) === 1 && inRoom(R.code) === 4, `${owned(bob, R.code)} ${inRoom(R.code)}`);
+    check('s4a: state re-fetched (missed hint now present)', bob.st.guessesRemaining === 1 && bob.txt('chat-log').includes('ZEPHYRIA - 1'));
+    check('s4a: roster back to 4 everywhere', R.all.every((p) => roster(p) === 4));
+    const before = bob.ev('__n');
+    B.val('chat-text', 'ping'); B.click('submit-chat'); await settle(); // someone else's update
+    check('s4a: one server update → exactly one render on Bob (no duplicate subscription)', bob.ev('__n') - before === 1, String(bob.ev('__n') - before));
+    check('s4a: reconnected state in sync in all tabs', synced(R));
+}
+
+// ── b) 'online' event skips the backoff wait ──
+{
+    const R = await room2('b-'); const bob = R.all[3];
+    net.offline.add(bob.label); drop(bob);
+    while ((net.subscribes[bob.label] || 0) < 9) await sleep(5); // deep in backoff: waits are now 300ms real
+    await sleep(40); // let the in-flight attempt fail so the loop is parked in its wait
+    net.offline.delete(bob.label);
+    bob.w.dispatchEvent(new bob.w.Event('online'));
+    await sleep(80);
+    check('s4b: `online` event triggers immediate retry (reconnected within 80ms)', !bob.doc.querySelector('.reconnecting') && owned(bob, R.code) === 1);
+}
+
+// ── c) 10 failures → "Connection lost" ──
+{
+    const R = await room2('c-'); const bob = R.all[3];
+    net.offline.add(bob.label); const n0 = net.subscribes[bob.label] || 0; drop(bob);
+    await sleep(2600);
+    const line = bob.doc.querySelector('.reconnecting');
+    check('s4c: after 10 failed tries → "Connection lost — reload the page"', line && line.textContent === 'Connection lost — reload the page', line && line.textContent);
+    check('s4c: exactly 10 attempts', net.subscribes[bob.label] - n0 === 10, String(net.subscribes[bob.label] - n0));
+    const n1 = net.subscribes[bob.label]; await sleep(200);
+    check('s4c: no further retries', net.subscribes[bob.label] === n1);
+    bob.ev('renderChat()');
+    check('s4c: message persists', !!bob.doc.querySelector('.reconnecting'));
+}
+
+// ── d) leaving while reconnecting stops the loop ──
+{
+    const R = await room2('d-'); const bob = R.all[3];
+    net.offline.add(bob.label); drop(bob);
+    await sleep(30);
+    bob.click('leave-btn'); bob.click('leave-btn');
+    await sleep(60);
+    const n = net.subscribes[bob.label]; await sleep(400);
+    check('s4d: leave during reconnect → lobby, message gone, no more attempts, no channel', bob.hidden('game-screen') && !bob.doc.querySelector('.reconnecting') && net.subscribes[bob.label] === n && owned(bob, R.code) === 0);
+}
+
+// ── e) refresh mid-game ──
+{
+    const R = await room2('e-'); const [A, B, C, D] = R.all;
+    const T = A.st.turn; await hint(R, T, 'ZEPHYRIA', 2);
+    const sess = JSON.parse(D.w.sessionStorage.getItem('wg_session'));
+    closeTab(D); // what a page unload does to its channel
+    await sleep(40);
+    check('s4e: closing tab updates roster (3) in others', [A, B, C].every((p) => roster(p) === 3) && inRoom(R.code) === 3);
+    const D2 = mkPlayer('e-D2', { session: sess }); await sleep(300);
+    check('s4e: refresh restores same room/team/role/state', !D2.hidden('game-screen') && D2.st.code === R.code && D2.st.myTeam === 'blue' && D2.st.myRole === 'guesser' && D2.st.guessesRemaining === 2 && JSON.stringify(D2.st.cards) === JSON.stringify(A.st.cards));
+    check('s4e: exactly 1 channel for refreshed tab, 4 in room, roster 4 everywhere', owned(D2, R.code) === 1 && inRoom(R.code) === 4 && [A, B, C, D2].every((p) => roster(p) === 4));
+    const before = JSON.stringify(D2.st.cards);
+    const c = A.st.cards.map((x, i) => ({ ...x, i })).find((x) => x.team === T && !x.revealed); (T === 'red' ? B : D2).card(c.i).click(); await settle();
+    check('s4e: refreshed tab receives live updates', JSON.stringify(D2.st.cards) !== before && D2.st.cards[c.i].revealed);
+    // g) single channel per window
+    check('s4g: every live window holds exactly one channel object, all registered', [A, B, C, D2].every((p) => owned(p, R.code) === 1 && p.ev('channel') !== null));
+}
+
+// ── f) close tab + reopen ──
+{
+    const R = await room2('f-'); const [A, B, C, D] = R.all;
+    closeTab(B); await sleep(40);
+    check('s4f: closed tab leaves roster (3 left, name gone)', [A, C, D].every((p) => roster(p) === 3 && !p.txt('active-players-list').includes('f-B')));
+    const B2 = await join('f-B2', R.code, 'red', 'guesser');
+    check('s4f: reopened tab joins, roster back to 4 everywhere, 4 channels', [A, C, D, B2].every((p) => roster(p) === 4) && inRoom(R.code) === 4 && owned(B2, R.code) === 1);
+}
+
+// ═════════ Race: two guessers click different cards within 50ms ═════════
+console.log('\n== Race: simultaneous reveals ==');
+{
+    const gaps = [0, 0, 5, 10, 20, 30, 40, 45, 50, 0]; // ms between the two clicks
+    const errMsgs = new Set(['Not your turn', 'Wait for a hint']);
+    let i = 0, serverRejected = 0, clientGuarded = 0;
+    for (const gap of gaps) {
+        i++;
+        const R = await room2(`r${i}-`); const [A, B, C, D] = R.all;
+        const G2 = await join(`r${i}-B2`, R.code, 'red', 'guesser'); // second red guesser
+        const all = [...R.all, G2];
+        const T = A.st.turn; // whoever starts; make the two guessers of that team race
+        const g1 = T === 'red' ? B : D;
+        const g2 = T === 'red' ? G2 : await join(`r${i}-D2`, R.code, 'blue', 'guesser');
+        if (T !== 'red') all.push(g2);
+        await hint(R, T, 'ZEPHYRIA', 1);
+        const mine = A.st.cards.map((x, k) => ({ ...x, k })).filter((x) => x.team === T && !x.revealed);
+        const [c1, c2] = [mine[0].k, mine[1].k];
+        const left0 = A.st.cardsLeft[T], chat0 = A.st.chatLog.length;
+        [g1, g2].forEach((g) => g.ev('const __st = showToast; showToast = function (m, k) { window.__toasts = (window.__toasts || []).concat(m); return __st(m, k); }'));
+        g1.card(c1).click();
+        if (gap) await sleep(gap);
+        g2.card(c2).click();
+        await sleep(200);
+        const st = A.st;
+        const revealed = st.cards.filter((x) => x.revealed).length;
+        const t1 = g1.w.__toasts || [], t2 = g2.w.__toasts || [];
+        const failures = t1.concat(t2);
+        const boardsEqual = all.every((p) => JSON.stringify(p.st.cards) === JSON.stringify(st.cards) && p.st.turn === st.turn && JSON.stringify(p.st.cardsLeft) === JSON.stringify(st.cardsLeft));
+        const domLeft = all.every((p) => p.doc.querySelector(`.score[data-team=${T}] .score-n`).textContent === String(left0 - 1));
+        const turnLines = st.chatLog.slice(chat0).filter((m) => m.type === 'system').length;
+        check(`race #${i} (gap ${gap}ms): exactly 1 card revealed, cards_left ${left0}→${left0 - 1} once, 2nd click rejected (by server, or by client guard once it saw the update), clients converge`,
+            revealed === 1 && st.cardsLeft[T] === left0 - 1 && failures.length <= 1 && failures.every((f) => errMsgs.has(f)) && boardsEqual && domLeft && turnLines === 1 && st.turn !== T,
+            JSON.stringify({ revealed, left: st.cardsLeft, failures, boardsEqual, domLeft, turnLines, turn: st.turn }));
+        if (failures.length) serverRejected++; else clientGuarded++;
+        // the winner is whichever the server saw first; the DB row itself must agree with every client
+        const row = (await be.select(R.code)).data;
+        check(`race #${i}: DB row == clients (cards, cards_left, turn, guesses)`, JSON.stringify(row.board_cards) === JSON.stringify(st.cards) && JSON.stringify(row.cards_left) === JSON.stringify(st.cardsLeft) && row.turn === st.turn && row.guesses_remaining === st.guessesRemaining);
+    }
+    check(`race: both rejection paths exercised (server-rejected ${serverRejected}, client-guarded ${clientGuarded})`, serverRejected >= 1 && clientGuarded >= 1);
+    // pure DB-level race: 2 RPCs fired in the same tick from 2 different sessions
+    const R = await room2('rdb-'); const T = R.all[0].st.turn; await hint(R, T, 'ZEPHYRIA', 1);
+    const mine = R.all[0].st.cards.map((x, k) => ({ ...x, k })).filter((x) => x.team === T);
+    const [r1, r2] = await Promise.all([0, 1].map((n) => be.rpc('reveal_card', { p_code: R.code, p_team: T, p_index: mine[n].k })));
+    const ok = [r1, r2].filter((r) => r.data).length, bad = [r1, r2].filter((r) => r.error);
+    const row = (await be.select(R.code)).data;
+    check('race DB: Promise.all of two reveal_card → exactly one success, one rejection, 1 card revealed, cards_left 8→7', ok === 1 && bad.length === 1 && /Not your turn|Wait for a hint/.test(bad[0].error.message) && row.board_cards.filter((x) => x.revealed).length === 1 && row.cards_left[T] === 7, JSON.stringify({ ok, bad: bad.map((b) => b.error.message), left: row.cards_left }));
+}
+
+// ═════════ Reconnect exactly when End Turn RPC resolves ═════════
+console.log('\n== Reconnect during End Turn ==');
+for (const loseResponse of [false, true]) {
+    const tag = loseResponse ? 'response lost' : 'response delivered';
+    const R = await room2(loseResponse ? 'et2-' : 'et1-'); const [A, B, C, D] = R.all;
+    const T = A.st.turn, O = T === 'red' ? 'blue' : 'red';
+    const tg = R.P[T].gu, other = R.P[O].spy; // tg = the team's guesser who ends the turn
+    await hint(R, T, 'ZEPHYRIA', 2); // hint outstanding, 2 guesses left
+    tg.ev('window.__T = []; const __s = showToast; showToast = function (m, k) { window.__T.push(m); return __s(m, k); }');
+    tg.ev('window.__renders = 0; const __r = renderChat; renderChat = function () { window.__renders++; return __r(); }');
+    net.hook = { owner: tg.label, name: 'end_turn', loseResponse };
+    tg.click('end-turn-btn'); await sleep(40);
+    let row = (await be.select(R.code)).data;
+    check(`et (${tag}): server applied end_turn, turn → ${O}, guesses 0`, row.turn === O && row.guesses_remaining === 0);
+    check(`et (${tag}): client is on "Reconnecting…" after the drop`, !!tg.doc.querySelector('.reconnecting'));
+    if (loseResponse) check(`et (${tag}): client shows stale state until reconnect (still thinks ${T}'s turn)`, tg.st.turn === T && tg.st.guessesRemaining === 2);
+    else check(`et (${tag}): client already applied RPC result`, tg.st.turn === O);
+    net.offline.delete(tg.label);
+    await sleep(700);
+    row = (await be.select(R.code)).data;
+    const st = tg.st;
+    check(`et (${tag}): active team matches server (${row.turn})`, st.turn === row.turn && tg.txt('turn-indicator').startsWith(row.turn.toUpperCase()));
+    check(`et (${tag}): guesses remaining matches server (${row.guesses_remaining})`, st.guessesRemaining === row.guesses_remaining && tg.txt('turn-indicator').includes('waiting for hint'));
+    const hints = row.chat_log.filter((m) => m.type === 'hint');
+    check(`et (${tag}): hint text matches server ("${hints[0].text}") exactly once`, hints.length === 1 && tg.txt('chat-log').split(hints[0].text).length === 2 && st.chatLog.filter((m) => m.type === 'hint')[0].text === hints[0].text);
+    check(`et (${tag}): scoreboard matches server cards_left`, [...tg.doc.querySelectorAll('.score')].every((e) => e.querySelector('.score-n').textContent === String(row.cards_left[e.dataset.team])));
+    const doms = [...tg.doc.querySelectorAll('#chat-log .hint-msg')].filter((e) => !e.classList.contains('reconnecting')).map((e) => e.textContent);
+    const turnLines = row.chat_log.filter((m) => m.type === 'system' && m.text === `${O.toUpperCase()} team's turn`).length;
+    check(`et (${tag}): no duplicate chat message (DOM ${doms.length} lines == server ${row.chat_log.length}; one "${O.toUpperCase()} team's turn")`,
+        doms.length === row.chat_log.length && turnLines === 1 && doms.filter((t) => t === `${O.toUpperCase()} team's turn`).length === 1 && new Set(doms.filter((t) => /team's turn|ZEPHYRIA/.test(t))).size === doms.filter((t) => /team's turn|ZEPHYRIA/.test(t)).length,
+        JSON.stringify(doms));
+    const toasts = tg.w.__T;
+    check(`et (${tag}): toasts: ${loseResponse ? 'exactly one (the failed RPC), none added by reconnect' : 'none'}`, loseResponse ? toasts.length === 1 && toasts[0] === 'offline' : toasts.length === 0, JSON.stringify(toasts));
+    check(`et (${tag}): exactly 1 channel for that tab, roster 4, no reconnect line`, owned(tg, R.code) === 1 && inRoom(R.code) === 4 && !tg.doc.querySelector('.reconnecting') && R.all.every((p) => roster(p) === 4));
+    // next event after recovery must arrive once
+    const n0 = tg.w.__renders;
+    await hint(R, O, 'PLANETX', 1);
+    check(`et (${tag}): next hint arrives once on recovered client`, tg.w.__renders - n0 === 1 && tg.txt('chat-log').split('PLANETX - 1').length === 2 && tg.st.guessesRemaining === 1, String(tg.w.__renders - n0));
+    check(`et (${tag}): all tabs converge`, synced(R));
+}
+
+// ═════════ S5: accessibility ═════════
+console.log('\n== S5: accessibility ==');
+{
+    const R = await room2('a11y-'); const [A, B, C, D] = R.all;
+    const T = A.st.turn, O = T === 'red' ? 'blue' : 'red';
+    const tg = R.P[T].gu, spy = R.P[T].spy, other = R.P[O].gu;
+    const key = (p, k, opts = {}) => { const e = new p.w.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }); p.doc.activeElement.dispatchEvent(e); return e; };
+    const cards = (p) => [...p.doc.querySelectorAll('.card')];
+    check('a11y: no hint yet → every card disabled for everyone', R.all.every((p) => cards(p).every((c) => c.disabled)));
+    check('a11y: board is a labelled group, focusable container; cards are buttons', spy.doc.getElementById('board').getAttribute('role') === 'group' && spy.doc.getElementById('board').tabIndex === -1 && cards(spy).every((c) => c.tagName === 'BUTTON'));
+    check('a11y: turn pill is a polite live region', spy.doc.getElementById('turn-indicator').getAttribute('aria-live') === 'polite');
+    check('a11y: scoreboard has spoken labels ("RED cards left 8"), dot hidden', /RED cards left/.test(spy.txt('scoreboard')) && spy.doc.querySelector('.score-dot').getAttribute('aria-hidden') === 'true');
+    check('a11y: spymaster card labels carry the colour, guesser labels do not', /, (red|blue|neutral|assassin)$/.test(cards(spy)[0].getAttribute('aria-label')) && !/,/.test(cards(tg)[0].getAttribute('aria-label')));
+    // toast → announced
+    spy.val('hint-word', 'two words'); spy.val('hint-number', '1'); spy.click('submit-hint'); await sleep(60);
+    check('a11y: toast is aria-hidden, its text is announced in #sr-live', spy.doc.getElementById('toast').getAttribute('aria-hidden') === 'true' && spy.txt('sr-live') === spy.toast() && spy.toast().length > 0, spy.txt('sr-live'));
+    // hint → announced to the whole room, cards enable for the turn guesser only
+    await hint(R, T, 'ZEPHYRIA', 1); await sleep(60);
+    check('a11y: hint announced to every tab', R.all.every((p) => p.txt('sr-live') === `${T.toUpperCase()} spymaster hint: ZEPHYRIA - 1`), R.all.map((p) => p.txt('sr-live')).join(' | '));
+    check('a11y: turn guesser cards enabled, everyone else disabled', cards(tg).every((c) => !c.disabled) && [spy, other, R.P[O].spy].every((p) => cards(p).every((c) => c.disabled)));
+    check('a11y: turn-change chat lines are not double-announced (pill covers them)', !R.all.some((p) => /team's turn/.test(p.txt('sr-live'))));
+    // chat announced with name + team
+    other.val('chat-text', 'hello'); other.click('submit-chat'); await sleep(60);
+    check('a11y: chat message announced "name, team: text"', R.all.every((p) => p.txt('sr-live') === `${other.label}, ${O}: hello`), spy.txt('sr-live'));
+    // keyboard on the board: focus stays on the board after the card list is rebuilt
+    const own = tg.st.cards.findIndex((x) => x.team === T && !x.revealed);
+    cards(tg)[own].focus(); cards(tg)[own].click(); await sleep(150);
+    check('a11y: after a reveal rebuilds the board, focus is not dropped to <body>', tg.doc.activeElement !== tg.doc.body && tg.doc.getElementById('board').contains(tg.doc.activeElement) || tg.doc.activeElement === tg.doc.getElementById('board'), tg.doc.activeElement.id || tg.doc.activeElement.tagName);
+    check('a11y: revealed card label includes colour', cards(tg)[own].getAttribute('aria-label') === `${tg.st.cards[own].word}, ${T}`);
+    // rules modal: focus in, Tab trapped, Escape closes + restores focus
+    const opener = spy.doc.getElementById('rules-btn-game'); opener.focus(); opener.click();
+    check('a11y: rules modal opens with focus on Close', spy.doc.activeElement.id === 'close-rules-btn');
+    check('a11y: dialog has role/aria-modal/labelledby/describedby resolving to real ids', ['rules-modal', 'game-over-modal'].every((id) => { const m = spy.doc.getElementById(id); return m.getAttribute('role') === 'dialog' && m.getAttribute('aria-modal') === 'true' && ['aria-labelledby', 'aria-describedby'].every((a) => spy.doc.getElementById(m.getAttribute(a))); }));
+    const seen = [];
+    for (let i = 0; i < 5; i++) { key(spy, 'Tab'); seen.push(spy.doc.activeElement.id || spy.doc.activeElement.className); }
+    check('a11y: Tab never leaves the open rules dialog', seen.every((s) => ['close-rules-btn', 'rules-desc'].includes(s)) , seen.join());
+    spy.doc.getElementById('rules-desc').focus(); const e1 = key(spy, 'Tab', { shiftKey: true });
+    check('a11y: Shift+Tab from first element wraps to last', spy.doc.activeElement.id === 'close-rules-btn' && e1.defaultPrevented);
+    key(spy, 'Escape');
+    check('a11y: Escape closes rules and returns focus to the opener', spy.hidden('rules-modal') && spy.doc.activeElement === opener);
+    // winner modal: focus in, trapped, Escape does NOT close, focus restored after Play Again
+    other.doc.getElementById('chat-text').focus();
+    const T2 = A.st.turn;
+    await hint(R, T2, 'PLANETX', 1);
+    const black = A.st.cards.findIndex((x) => x.team === 'black');
+    R.P[T2].gu.card(black).click(); await sleep(150);
+    check('a11y: game over → winner modal focuses Play Again; announced', !other.hidden('game-over-modal') && other.doc.activeElement.id === 'play-again-btn' && /wins!/.test(other.txt('sr-live')), other.txt('sr-live'));
+    key(other, 'Escape');
+    check('a11y: Escape does not close the winner modal', !other.hidden('game-over-modal'));
+    key(other, 'Tab'); key(other, 'Tab');
+    check('a11y: Tab cycles within winner modal', other.doc.getElementById('game-over-modal').contains(other.doc.activeElement));
+    const back = other.doc.getElementById('chat-text'); // was focused before the modal opened
+    other.click('play-again-btn'); await sleep(200);
+    check('a11y: Play Again closes modal and restores focus to the previously focused control', other.hidden('game-over-modal') && other.doc.activeElement === back, other.doc.activeElement.id);
+    check('a11y: restart announced', other.txt('sr-live').includes('Game restarted'));
+    // leave → focus lands in the lobby
+    other.click('leave-btn'); other.click('leave-btn'); await sleep(80);
+    check('a11y: leaving moves focus to the lobby', other.doc.activeElement.id === 'create-name');
+}
+
+// ═════════ Client-side fixes (audit): defensive chat, ordering guard, first-connect failure, ?code= precedence ═════════
+console.log('\n== Client fixes ==');
+{
+    const R = await room2('cf-'); const [A, B, C, D] = R.all;
+    const row = (await be.select(R.code)).data;
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+    const put = (p, r2) => { p.w.__row = clone(r2); return p.ev('syncStateWithDB(__row)'); };
+
+    // ── 1. malformed chat never breaks rendering ──
+    const bad = clone(row);
+    bad.chat_log = [null, 5, 'str', [], { type: 'chat' }, { type: 'chat', team: null, name: null, text: 'boom' },
+        { type: 'hint', team: 42, text: 'H' }, { type: 'system' }, { type: 'bogus', text: 'odd' }, { type: 'system', text: 'ok-system' },
+        { type: 'chat', team: 'red', name: 'ok', text: '<b>fine</b>' }, { type: 'chat', team: 'zzz', name: {}, text: { x: 1 } }];
+    let threw = null;
+    try { put(A, bad); } catch (e) { threw = e; }
+    check('chat: malformed entries (null, numbers, missing/typed-wrong fields) do not throw', threw === null, String(threw));
+    const lines = [...A.doc.querySelectorAll('#chat-log .hint-msg')].map((e) => e.textContent);
+    check('chat: well-formed entries still render, markup stays text', lines.includes('ok-system') && lines.includes('ok (RED): <b>fine</b>') && !A.doc.querySelector('#chat-log b'), JSON.stringify(lines));
+    check('chat: null team/name degrade to "?" / "Anonymous"', lines.includes('Anonymous (?): boom') && lines.includes('? Spymaster: H'), JSON.stringify(lines));
+    check('chat: board and scoreboard were rendered in the same sync', A.doc.querySelectorAll('.card').length === 25 && A.doc.querySelectorAll('.score').length === 2);
+    const nonArr = clone(row); nonArr.chat_log = { not: 'an array' }; A.ev('seen = null');
+    try { put(A, nonArr); check('chat: chat_log that is not an array renders as empty', A.doc.querySelectorAll('#chat-log .hint-msg').length === 0); } catch (e) { check('chat: non-array chat_log', false, String(e)); }
+    // game over + malformed chat still shows the winner modal
+    const over = clone(row); over.game_over = true; over.winner = 'blue'; over.chat_log = [null, { type: 'chat', team: null, text: 'x' }, { type: 'system', text: 'BLUE wins!' }];
+    over.board_cards = over.board_cards.map((c) => ({ ...c, revealed: true }));
+    B.ev('seen = null');
+    try { put(B, over); } catch (e) { check('chat: game-over row with bad chat', false, String(e)); }
+    check('chat: winner modal still opens when chat is malformed', !B.hidden('game-over-modal') && B.txt('winner-text') === 'BLUE TEAM WINS!');
+    // the real server-side gap that motivated this: send_chat with a NULL team (SQL unchanged, this only feeds the client)
+    const R2 = await room2('cf2-'); const nullChat = await be.rpc('send_chat', { p_code: R2.code, p_team: null, p_name: 'mallory', p_text: 'boom' });
+    emit(nullChat.data); await sleep(60);
+    check('chat: a chat line with NULL team from the real send_chat does not break any client', R2.all.every((p) => p.txt('chat-log').includes('mallory (?): boom') && p.doc.querySelectorAll('.card').length === 25));
+    await hint(R2, R2.all[0].st.turn, 'ZEPHYRIA', 1);
+    check('chat: room keeps working after the malformed line (hint arrives)', R2.all.every((p) => p.st.guessesRemaining === 1 && p.txt('chat-log').includes('ZEPHYRIA - 1')));
+
+    // ── 2. ordering guard ──
+    const R3 = await room2('cf3-'); const [a, b, c, d] = R3.all;
+    const T = a.st.turn; await hint(R3, T, 'ZEPHYRIA', 2);
+    const v1 = (await be.select(R3.code)).data;                                   // hint given
+    const own = a.st.cards.map((x, i) => ({ ...x, i })).filter((x) => x.team === T && !x.revealed);
+    R3.P[T].gu.card(own[0].i).click(); await settle();
+    const v2 = (await be.select(R3.code)).data;                                   // one card revealed
+    check('guard: server states v1 < v2 in rank', v2.board_cards.filter((x) => x.revealed).length === 1 && v2.chat_log.length === v1.chat_log.length);
+    const here = a; // window under test, currently at v2
+    put(here, v1);
+    check('guard: older payload (v1) does not overwrite newer state (v2)', here.st.guessesRemaining === v2.guesses_remaining && here.st.cards.filter((x) => x.revealed).length === 1 && here.st.cardsLeft[T] === v2.cards_left[T]);
+    put(here, v2);
+    check('guard: equal state is a no-op (same rank)', here.doc.querySelector('.card') && here.st.turn === v2.turn);
+    // newer applies
+    R3.P[T].gu.click('end-turn-btn'); await settle(); // v3
+    const vNow = (await be.select(R3.code)).data;
+    check('guard: normal newer updates still apply in every tab', R3.all.every((p) => JSON.stringify(p.st.cards) === JSON.stringify(vNow.board_cards) && p.st.turn === vNow.turn));
+    // restart = new board: newer timestamp wins; an old-board straggler afterwards is dropped
+    const stale = clone(vNow);
+    const rs = await be.rpc('restart_game', { p_code: R3.code, p_cards: clone(a.ev('generateBoard(2)')) });
+    emit(rs.data); await sleep(80);
+    check('guard: restart (new board, newer updated_at) applies in every tab', R3.all.every((p) => p.st.cards.every((x) => !x.revealed) && JSON.stringify(p.st.cards) === JSON.stringify(rs.data.board_cards)));
+    put(a, stale);
+    check('guard: a straggler from the OLD board (older updated_at) is ignored after a restart', JSON.stringify(a.st.cards) === JSON.stringify(rs.data.board_cards));
+
+    // ── 2b. out-of-order RPC response vs realtime (the real race) ──
+    for (const guardOn of [true, false]) {
+        const R4 = await room2(guardOn ? 'cf4-' : 'cf5-'); const T4 = R4.all[0].st.turn, O4 = T4 === 'red' ? 'blue' : 'red';
+        await hint(R4, T4, 'ZEPHYRIA', 2);
+        const tg = R4.P[T4].gu;
+        if (!guardOn) tg.ev('isStale = () => false'); // negative control: same scenario without the guard
+        net.delay = { owner: tg.label, name: 'end_turn', ms: 250 };
+        tg.click('end-turn-btn');            // server applies end_turn, echo reaches everyone, the HTTP reply is slow
+        await sleep(60);
+        await hint(R4, O4, 'PLANETX', 1);     // newer server state, delivered to tg by realtime first
+        await sleep(400);                     // the slow end_turn response finally lands on tg
+        const srv = (await be.select(R4.code)).data;
+        const ok = tg.st.turn === srv.turn && tg.st.guessesRemaining === srv.guesses_remaining && tg.txt('chat-log').includes('PLANETX - 1');
+        if (guardOn) check('race: slow RPC response arriving after a newer realtime event does not revert the client', ok, JSON.stringify({ turn: tg.st.turn, g: tg.st.guessesRemaining, srv: [srv.turn, srv.guesses_remaining] }));
+        else check('race negative control: without the guard the same scenario DOES revert the client (test is sensitive)', !ok);
+        if (guardOn) check('race: every tab equals the server row afterwards', R4.all.every((p) => p.st.turn === srv.turn && p.st.guessesRemaining === srv.guesses_remaining && JSON.stringify(p.st.cardsLeft) === JSON.stringify(srv.cards_left)));
+    }
+}
+
+// ── 3. first-connection failure ──
+{
+    const A = await create('l1-A', 2, 'red', 'spymaster'); const code = A.st.code;
+    net.failSubscribe.add('l1-B');
+    const Bp = await join('l1-B', code, 'red', 'guesser'); await sleep(100);
+    check('L1: failed first connect shows Retry / Back to lobby (not a blank board)', !Bp.hidden('game-screen') && !Bp.hidden('connect-error') && Bp.doc.activeElement.id === 'connect-retry' && Bp.doc.getElementById('connect-error').getAttribute('role') === 'alert');
+    check('L1: the failure is announced and toasted once; connecting state cleared', /Could not connect/.test(Bp.toast()) && /Could not connect/.test(Bp.txt('sr-live')) && !Bp.doc.body.classList.contains('connecting') && !Bp.doc.getElementById('board').hasAttribute('aria-busy'));
+    check('L1: no channel left registered for the failed tab', owned(Bp, code) === 0);
+    Bp.click('connect-retry'); await sleep(100);
+    check('L1: Retry while still failing keeps the panel', !Bp.hidden('connect-error') && owned(Bp, code) === 0);
+    net.failSubscribe.delete('l1-B');
+    Bp.click('connect-retry'); await sleep(150);
+    check('L1: Retry after the network is back loads the room (panel hidden, board, roster 2, one channel)', Bp.hidden('connect-error') && Bp.doc.querySelectorAll('.card').length === 25 && owned(Bp, code) === 1 && roster(A) === 2 && roster(Bp) === 2);
+    const Gp = await join('l1-G', code, 'blue', 'guesser'); Gp.val('chat-text', 'yo'); Gp.click('submit-chat'); await settle();
+    check('L1: recovered client is live (receives chat from another player)', Bp.txt('chat-log').includes('yo') && Gp.txt('chat-log').includes('yo'));
+    // Back to lobby from the failure panel
+    net.failSubscribe.add('l1-C');
+    const Cp = await join('l1-C', code, 'blue', 'guesser'); await sleep(100);
+    Cp.click('connect-leave'); await sleep(80);
+    check('L1: "Back to lobby" leaves cleanly (lobby shown, panel hidden, session cleared, focus in lobby)', !Cp.hidden('lobby-screen') && Cp.hidden('game-screen') && Cp.hidden('connect-error') && Cp.w.sessionStorage.getItem('wg_session') === null && Cp.doc.activeElement.id === 'create-name');
+    net.failSubscribe.delete('l1-C');
+    // nothing from a previously joined room may show on the failure screen
+    const other = await create('l1-X', 2, 'red', 'spymaster'); const stale = await join('l1-S', other.st.code, 'red', 'guesser');
+    check('L1 setup: player is in a room with a rendered board', stale.doc.querySelectorAll('.card').length === 25);
+    stale.click('leave-btn'); stale.click('leave-btn'); await sleep(80);
+    net.failSubscribe.add('l1-S');
+    stale.val('join-name', 'l1-S'); stale.val('join-id', code); stale.val('join-team', 'blue'); stale.val('join-role', 'guesser'); stale.click('join-btn'); await sleep(150);
+    check('L1: failure screen shows no board / chat / roster left over from the previous room', !stale.hidden('connect-error') && stale.doc.querySelectorAll('.card').length === 0 && stale.doc.querySelectorAll('#chat-log .hint-msg').length === 0 && stale.doc.querySelectorAll('#active-players-list li').length === 0);
+    net.failSubscribe.delete('l1-S');
+}
+
+// ── 4. ?code= precedence over the stored session ──
+{
+    const RA = await room2('l5a-'); const RB = await room2('l5b-');
+    const sessA = { code: RA.code, name: 'sess', team: 'red', role: 'guesser' };
+    const other = mkPlayer('l5-other', { url: `http://localhost/?code=${RB.code.toLowerCase()}`, session: sessA }); await sleep(250);
+    check('L5: explicit ?code= for another room wins: no auto-rejoin of the stored session', !other.hidden('lobby-screen') && other.hidden('game-screen') && other.st.code === '' && other.doc.getElementById('join-id').value === RB.code, other.st.code);
+    check('L5: the stored session is left untouched (not cleared)', JSON.parse(other.w.sessionStorage.getItem('wg_session')).code === RA.code);
+    const same = mkPlayer('l5-same', { url: `http://localhost/?code=${RA.code}`, session: sessA }); await sleep(300);
+    check('L5: ?code= equal to the session (what a plain refresh looks like) still restores the room', !same.hidden('game-screen') && same.st.code === RA.code);
+    const none = mkPlayer('l5-none', { session: sessA }); await sleep(300);
+    check('L5: no ?code= at all still restores the session', !none.hidden('game-screen') && none.st.code === RA.code && none.txt('chat-log').includes('Rejoined'));
+    const junk = mkPlayer('l5-junk', { url: 'http://localhost/?code=zz', session: sessA }); await sleep(300);
+    check('L5: a malformed ?code= is not an explicit room, session still restores', !junk.hidden('game-screen') && junk.st.code === RA.code);
+    // real refresh path: enterGame writes ?code= into the URL, reload keeps it
+    const live = await join('l5-live', RA.code, 'blue', 'guesser');
+    check('L5: entering a room writes ?code=<room> (so refresh == same code)', live.w.location.search === `?code=${RA.code}`);
+    const reload = mkPlayer('l5-reload', { url: `http://localhost/${live.w.location.search}`, session: JSON.parse(live.w.sessionStorage.getItem('wg_session')) }); await sleep(300);
+    check('L5: refresh (url ?code=room + session) rejoins the same room and role', reload.st.code === RA.code && reload.st.myTeam === 'blue' && !reload.hidden('game-screen'));
+}
+
+// ═════════ Cleanup pass: empty chat entries, malformed cards ═════════
+console.log('\n== Cleanup: empty chat entries + cards without a word ==');
+{
+    const R = await room2('cu-'); const [A, B, C, D] = R.all;
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+    const put = (p, r2) => { p.w.__row = clone(r2); p.ev('seen = null'); return p.ev('syncStateWithDB(__row)'); };
+    const row = (await be.select(R.code)).data;
+
+    // ── empty chat entries never render ──
+    const chat = clone(row);
+    chat.chat_log = [
+        { type: 'chat' }, { type: 'chat', text: '' }, { type: 'chat', team: 'red', name: 'x', text: '   ' }, { type: 'chat', team: null, name: null },
+        { type: 'hint', team: 'red' }, { type: 'hint', team: 'red', text: '' }, { type: 'hint', team: 'red', text: null },
+        { type: 'system' }, { type: 'system', text: '' }, { type: 'system', text: '  ' }, { type: 'bogus' },
+        { type: 'chat', team: 'red', name: 'ann', text: 'real message' }, { type: 'hint', team: 'blue', text: 'OCEAN - 2' }, { type: 'system', text: 'real system line' }];
+    let threw = null; try { put(A, chat); } catch (e) { threw = e; }
+    const lines = [...A.doc.querySelectorAll('#chat-log .hint-msg')].map((e) => e.textContent);
+    check('empty chat: no throw', threw === null, String(threw));
+    check('empty chat: only the 3 real entries render (no bare "Anonymous (…):", "? Spymaster:" or blank lines)', lines.length === 3 && lines[0] === 'ann (RED): real message' && lines[1] === 'BLUE Spymaster: OCEAN - 2' && lines[2] === 'real system line', JSON.stringify(lines));
+    check('empty chat: nothing empty is announced either', !/Anonymous|\?/.test(A.txt('sr-live')));
+    // the real server gap: a hint with a NULL word stores text null
+    const R2 = await room2('cu2-'); const T2 = R2.all[0].st.turn;
+    const nullHint = await be.rpc('give_hint', { p_code: R2.code, p_team: T2, p_word: null, p_n: 1 }); emit(nullHint.data); await sleep(80);
+    check('empty chat: a hint with NULL word (real give_hint) renders no line and breaks nothing', R2.all.every((p) => !/Spymaster:\s*$/.test(p.txt('chat-log')) && p.doc.querySelectorAll('.card').length === 25));
+
+    // ── cards without a word ──
+    const cards = clone(row);
+    cards.board_cards[2] = { team: cards.board_cards[2].team, revealed: false };            // no word
+    cards.board_cards[3] = null;                                                                // not an object
+    cards.board_cards[4] = { word: 42, team: 'red', revealed: false };                          // wrong type
+    cards.board_cards[5] = { word: 'NOTEAM', team: 'purple', revealed: false };                // bad team
+    threw = null; try { put(A, cards); } catch (e) { threw = e; }
+    check('malformed card: rendering does not throw', threw === null, String(threw));
+    const els = [...A.doc.querySelectorAll('.card')];
+    check('malformed card: 25 cards still rendered, no "undefined"/"null" text, bad team gets no data-team', els.length === 25 && els.every((e) => !/undefined|null/.test(e.textContent)) && !els[5].hasAttribute('data-team') && els[5].textContent === 'NOTEAM' && els[2].textContent === '' && els[2].getAttribute('aria-label') !== '' , els.slice(2, 6).map((e) => e.textContent).join('|'));
+    // hint flow with such a board: spymaster whose turn it is
+    const T = A.st.turn; const spy = R.P[T].spy;
+    spy.w.__row = clone(cards); spy.ev('seen = null; syncStateWithDB(__row)');
+    spy.val('hint-word', 'ZEPHYRIA'); spy.val('hint-number', '1');
+    let hintErr = null, res; try { res = await spy.ev('submitHint()'); } catch (e) { hintErr = e; }
+    check('malformed card: submitHint does not throw', hintErr === null, String(hintErr));
+    await settle();
+    check('malformed card: hint flow completes (client-side check skips the bad cards, server accepts the hint)', spy.st.guessesRemaining === 1 && spy.txt('chat-log').includes('ZEPHYRIA - 1'), String(spy.st.guessesRemaining));
+    // a board word must still be rejected when other cards are malformed
+    const spy2 = R.P[T === 'red' ? 'blue' : 'red'].spy; const wordOnBoard = cards.board_cards[10].word;
+    spy2.w.__row = clone(cards); spy2.ev('seen = null; syncStateWithDB(__row)'); // (not this team's turn: toast, but no throw)
+    let e2 = null; try { await spy2.ev('submitHint()'); } catch (e) { e2 = e; }
+    check('malformed card: still no throw on the not-your-turn path', e2 === null);
+    // clicking a malformed card as the guesser is safe
+    const gu = R.P[T].gu; gu.w.__row = clone(cards); gu.ev('seen = null; syncStateWithDB(__row)');
+    let clickErr = null; try { gu.card(2).click(); gu.card(3).click(); await settle(); } catch (e) { clickErr = e; }
+    check('malformed card: clicking blank/null cards does not throw', clickErr === null, String(clickErr));
+}
 
 // ═════════ error log ═════════
 console.log(`\nJS/console errors captured: ${errors.length}`);

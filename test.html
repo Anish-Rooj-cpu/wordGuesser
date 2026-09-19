@@ -6,64 +6,58 @@
     <style>body { font: 14px/1.5 monospace; padding: 16px; background: #fff; color: #111; } .fail { color: #c00; }</style>
 </head>
 <body>
-    <!-- Pure-logic checks against the real script.js. Serve over http (e.g. `python -m http.server 8000`) and open /test.html. -->
+    <!-- Pure-logic checks on game-core.js. No Supabase, no DOM from the app. Open directly or via any static server. -->
     <pre id="out"></pre>
-    <iframe id="app" hidden></iframe>
-<script>
-(async () => {
-    const out = document.getElementById('out');
-    let failed = 0;
-    const check = (name, ok) => {
-        if (!ok) failed++;
-        console.assert(ok, name);
-        out.insertAdjacentHTML('beforeend', `<div class="${ok ? '' : 'fail'}">${ok ? 'PASS' : 'FAIL'} ${name}</div>`);
-    };
+    <script src="game-core.js"></script>
+    <script>
+    (async () => {
+        const out = document.getElementById('out');
+        let failed = 0;
+        const check = (name, ok) => {
+            if (!ok) failed++;
+            console.assert(ok, name);
+            out.insertAdjacentHTML('beforeend', `<div class="${ok ? '' : 'fail'}">${ok ? 'PASS' : 'FAIL'} ${name}</div>`);
+        };
 
-    // Load index.html without its scripts into an iframe, stub supabase, then run the real script.js there.
-    const html = (await (await fetch('index.html')).text()).replace(/<script[\s\S]*?<\/script>/g, '');
-    const js = await (await fetch('script.js')).text();
-    const frame = document.getElementById('app');
-    frame.srcdoc = html;
-    await new Promise((r) => { frame.onload = r; });
-    const w = frame.contentWindow;
-    w.supabase = { createClient: () => ({}) };
-    w.Storage.prototype.getItem = () => null; // never auto-rejoin a saved session
-    const s = w.document.createElement('script');
-    s.textContent = js;
-    w.document.body.appendChild(s);
-    const g = (expr) => w.eval(expr);
-
-    const expected = { 2: { grid: 5, neutral: 8 }, 3: { grid: 6, neutral: 10 }, 4: { grid: 7, neutral: 10 } };
-    const TEAMS = g('TEAMS'), MODES = g('MODES');
-    for (const teams of [2, 3, 4]) {
-        let ok = true;
-        for (let run = 0; run < 200 && ok; run++) {
-            const b = w.generateBoard(teams);
-            const n = expected[teams].grid ** 2, count = (t) => b.filter((c) => c.team === t).length;
-            ok = b.length === n
-                && count('black') === teams - 1
-                && TEAMS.slice(0, teams).every((t) => count(t) === MODES[teams].perTeam)
-                && count('neutral') === expected[teams].neutral
-                && new Set(b.map((c) => c.word)).size === n
-                && b.every((c) => c.revealed === false)
-                && b.every((c) => TEAMS.slice(0, teams).concat('black', 'neutral').includes(c.team));
+        const pool = Array.from({ length: 120 }, (_, i) => 'WORD' + String.fromCharCode(65 + (i % 26)) + Math.floor(i / 26));
+        const expected = { 2: { grid: 5, neutral: 8 }, 3: { grid: 6, neutral: 10 }, 4: { grid: 7, neutral: 10 } };
+        for (const teams of [2, 3, 4]) {
+            let ok = true;
+            for (let run = 0; run < 200 && ok; run++) {
+                const b = generateBoard(teams, pool);
+                const n = expected[teams].grid ** 2, count = (t) => b.filter((c) => c.team === t).length;
+                ok = b.length === n
+                    && count('black') === teams - 1
+                    && TEAMS.slice(0, teams).every((t) => count(t) === MODES[teams].perTeam)
+                    && count('neutral') === expected[teams].neutral
+                    && new Set(b.map((c) => c.word)).size === n
+                    && b.every((c) => c.revealed === false)
+                    && b.every((c) => TEAMS.slice(0, teams).concat('black', 'neutral').includes(c.team));
+            }
+            check(`generateBoard(${teams}): ${expected[teams].grid}x${expected[teams].grid}, ${teams - 1} black, ${MODES[teams].perTeam}/team, ${expected[teams].neutral} neutral, unique words (200 runs)`, ok);
         }
-        check(`generateBoard(${teams}): ${expected[teams].grid}x${expected[teams].grid}, ${teams - 1} black, ${MODES[teams].perTeam}/team, ${expected[teams].neutral} neutral, unique words (200 runs)`, ok);
-    }
 
-    const a = [1, 2, 3, 4, 5], r = w.shuffle(a);
-    check('shuffle: in place, same elements', r === a && [...a].sort().join() === '1,2,3,4,5');
-    check('words: at least 49, all unique', g('words.length >= 49 && new Set(words).size === words.length'));
-    check('makeCode: 6 chars from the safe alphabet', /^[A-HJ-NP-Z2-9]{6}$/.test(w.makeCode()));
+        const a = [1, 2, 3, 4, 5], r = shuffle(a);
+        check('shuffle: in place, same elements', r === a && [...a].sort().join() === '1,2,3,4,5');
 
-    const RE = g('HINT_RE');
-    for (const ok of ['OCEAN', "O'NEIL", 'SELF-MADE', 'A'.repeat(20)]) check(`HINT_RE accepts "${ok}"`, RE.test(ok));
-    for (const bad of ['TWO WORDS', '', 'A'.repeat(21), 'OCEAN2', '-DASH', ' OCEAN']) check(`HINT_RE rejects "${bad}"`, !RE.test(bad));
+        // the real word list lives in script.js; read it as data so this page needs no Supabase
+        try {
+            const src = await (await fetch('script.js')).text();
+            const words = JSON.parse(src.match(/^const words = (\[.*\]);/m)[1]);
+            check(`words: ${words.length} entries, >= 500, all unique, uppercase letters only`, words.length >= 500 && new Set(words).size === words.length && words.every((w) => /^[A-Z]+$/.test(w)));
+            check('words: no team-colour names or listed function words', !['RED', 'BLUE', 'GREEN', 'CYAN', 'YELLOW', 'WHITE', 'BLACK', 'WHEREAS'].some((w) => words.includes(w)));
+            check('generateBoard(4) works on the real list', generateBoard(4, words).length === 49);
+        } catch (e) {
+            check('words: script.js readable over http (serve this folder, file:// blocks fetch)', false);
+        }
 
-    const line = failed ? 'FAILED' : 'ALL PASSED';
-    out.insertAdjacentHTML('beforeend', `<h3 class="${failed ? 'fail' : ''}">${line}</h3>`);
-    document.title = line;
-})();
-</script>
+        for (const ok of ['OCEAN', "O'NEIL", 'SELF-MADE', 'A'.repeat(20)]) check(`HINT_RE accepts "${ok}"`, HINT_RE.test(ok));
+        for (const bad of ['TWO WORDS', '', 'A'.repeat(21), 'OCEAN2', '-DASH', ' OCEAN']) check(`HINT_RE rejects "${bad}"`, !HINT_RE.test(bad));
+
+        const line = failed ? 'FAILED' : 'ALL PASSED';
+        out.insertAdjacentHTML('beforeend', `<h3 class="${failed ? 'fail' : ''}">${line}</h3>`);
+        document.title = line;
+    })();
+    </script>
 </body>
 </html>

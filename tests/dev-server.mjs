@@ -13,7 +13,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const be = await createBackend();
 const rooms = new Map(); // room -> Set<{res, key, presence}>
 
-const emit = (c, ev, data) => c.res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
+let offline = false; // test switch: /_test/offline?on=1 kills every SSE stream and answers 503 until switched off
+const emit = (c, ev, data) => { try { c.res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`); } catch (e) { /* stream already gone */ } };
 const clients = (room) => rooms.get(room) || new Set();
 const presenceState = (room) => { const s = {}; clients(room).forEach((c) => { if (c.presence) s[c.key] = [c.presence]; }); return s; };
 const broadcast = (room, ev, data) => clients(room).forEach((c) => emit(c, ev, data));
@@ -22,6 +23,14 @@ const readJson = (req) => new Promise((ok) => { let b = ''; req.on('data', (d) =
 http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
     const json = (o) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+
+    if (u.pathname === '/_test/offline') {
+        offline = u.searchParams.get('on') === '1';
+        if (offline) rooms.forEach((set) => set.forEach((c) => c.res.destroy()));
+        return json({ offline });
+    }
+    if (u.pathname === '/_test/stats') return json(Object.fromEntries([...rooms].map(([room, set]) => [room, set.size])));
+    if (offline && u.pathname.startsWith('/api/')) { res.writeHead(503); return res.end('offline'); }
 
     if (u.pathname === '/api/sse') {
         const room = u.searchParams.get('room');
@@ -55,7 +64,7 @@ http.createServer(async (req, res) => {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('not found'); }
     let body = fs.readFileSync(file);
     if (rel === 'index.html') {
-        body = body.toString().replace(/<script src="[^"]*supabase-js[^"]*"><\/script>/, '<script src="/__shim.js"></script>');
+        body = body.toString().replace(/<script src="[^"]*supabase-js[^"]*"[^>]*><\/script>/, '<script src="/__shim.js"></script>');
     }
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
     res.end(body);
