@@ -812,6 +812,30 @@ console.log('\n== Cleanup: empty chat entries + cards without a word ==');
     check('malformed card: clicking blank/null cards does not throw', clickErr === null, String(clickErr));
 }
 
+// ═════════ turn timer (server side) ═════════
+{
+    console.log('\n[turn timer]');
+    const cards = Array.from({ length: 25 }, (_, i) => ({ word: 'T' + i, team: i < 8 ? 'red' : i < 16 ? 'blue' : i < 17 ? 'black' : 'neutral', revealed: false }));
+    const base = { teams: 2, grid: 5, board_cards: cards, cards_left: { red: 8, blue: 8 }, turn: 'red', chat_log: [] };
+    await be.insert({ ...base, game_code: 'TIMER1', turn_seconds: 30 });
+    await be.insert({ ...base, game_code: 'TIMER0' });
+    let r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
+    check('timer: early timeout_turn is a no-op', r.data.turn === 'red' && r.data.chat_log.length === 0);
+    await pg.query("update games set turn_started_at = now() - interval '31 seconds' where game_code in ('TIMER1','TIMER0')");
+    r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
+    check('timer: expired turn skips to next team with fresh clock', r.data.turn === 'blue' && r.data.guesses_remaining === 0
+        && Date.now() - new Date(r.data.turn_started_at).getTime() < 5000 && r.data.chat_log[0].text === 'RED ran out of time');
+    r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
+    check('timer: repeated call after skip does not skip again', r.data.turn === 'blue');
+    r = await be.rpc('timeout_turn', { p_code: 'TIMER0' });
+    check('timer: untimed game never times out', r.data.turn === 'red');
+    await pg.query("update games set turn_started_at = now() - interval '20 seconds' where game_code = 'TIMER1'");
+    await be.rpc('give_hint', { p_code: 'TIMER1', p_team: 'blue', p_word: 'ZEBRA', p_n: 1 });
+    await pg.query("update games set turn_started_at = turn_started_at - interval '20 seconds' where game_code = 'TIMER1'");
+    r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
+    check('timer: a hint restarts the clock', r.data.turn === 'blue' && r.data.guesses_remaining === 1);
+}
+
 // ═════════ error log ═════════
 console.log(`\nJS/console errors captured: ${errors.length}`);
 errors.slice(0, 10).forEach((e) => console.log('  ', e));

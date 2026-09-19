@@ -233,6 +233,9 @@ body {
     box-shadow: 0 0 12px var(--tc-glow, transparent);
 }
 
+.turn-timer { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.turn-timer.low { color: #ff6b6b; }
+
 /* ── Game Body (Board + Chat) ────────────────── */
 .game-body {
     display: flex; flex: 1; overflow: hidden;

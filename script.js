@@ -8,7 +8,7 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const words = ["PEOPLE", "HISTORY", "WORLD", "FAMILY", "HEALTH", "SYSTEM", "COMPUTER", "MEAT", "YEAR", "MUSIC", "PERSON", "READING", "METHOD", "DATA", "FOOD", "THEORY", "BIRD", "PROBLEM", "SOFTWARE", "CONTROL", "KNOWLEDGE", "POWER", "ABILITY", "ECONOMICS", "LOVE", "INTERNET", "SCIENCE", "LIBRARY", "NATURE", "FACT", "PRODUCT", "IDEA", "AREA", "SOCIETY", "ACTIVITY", "STORY", "INDUSTRY", "MEDIA", "THING", "OVEN", "COMMUNITY", "SAFETY", "QUALITY", "LANGUAGE", "PLAYER", "VARIETY", "VIDEO", "WEEK", "SECURITY", "COUNTRY", "EXAM", "MOVIE", "EQUIPMENT", "PHYSICS", "ANALYSIS", "POLICY", "SERIES", "THOUGHT", "BASIS", "BOYFRIEND", "DIRECTION", "STRATEGY", "ARMY", "CAMERA", "FREEDOM", "PAPER", "CHILD", "INSTANCE", "MONTH", "TRUTH", "MARKETING", "WRITING", "ARTICLE", "GOAL", "NEWS", "AUDIENCE", "FISHING", "GROWTH", "INCOME", "MARRIAGE", "USER", "FAILURE", "MEANING", "MEDICINE", "TEACHER", "NIGHT", "CHEMISTRY", "DISEASE", "DISK", "ENERGY", "NATION", "ROAD", "ROLE", "SOUP", "LOCATION", "SUCCESS", "ADDITION", "APARTMENT", "EDUCATION", "MATH", "MOMENT", "PAINTING", "POLITICS", "ATTENTION", "DECISION", "EVENT", "PROPERTY", "SHOPPING", "STUDENT", "WOOD", "OFFICE", "PRESIDENT", "UNIT", "CATEGORY", "CIGARETTE", "CONTEXT", "DRIVER", "FLIGHT", "LENGTH", "MAGAZINE", "NEWSPAPER", "TEACHING", "CELL", "DEALER", "FINDING", "LAKE", "MEMBER", "MESSAGE", "PHONE", "SCENE", "CONCEPT", "CUSTOMER", "DEATH", "HOUSING", "INFLATION", "INSURANCE", "MOOD", "WOMAN", "ADVICE", "BLOOD", "EFFORT", "OPINION", "PAYMENT", "REALITY", "SITUATION", "SKILL", "STATEMENT", "WEALTH", "CITY", "COUNTY", "DEPTH", "ESTATE", "HEART", "PHOTO", "RECIPE", "STUDIO", "TOPIC", "PASSION", "RESOURCE", "SETTING", "AGENCY", "COLLEGE", "CRITICISM", "DEBT", "MEMORY", "PATIENCE", "SECRETARY", "SOLUTION", "ASPECT", "ATTITUDE", "DIRECTOR", "RESPONSE", "SELECTION", "STORAGE", "VERSION", "ALCOHOL", "ARGUMENT", "COMPLAINT", "CONTRACT", "EMPHASIS", "HIGHWAY", "LOSS", "STEAK", "UNION", "AGREEMENT", "CANCER", "CURRENCY", "ENTRY", "MIXTURE", "REGION", "REPUBLIC", "TRADITION", "VIRUS", "ACTOR", "CLASSROOM", "DELIVERY", "DEVICE", "DRAMA", "ELECTION", "ENGINE", "FOOTBALL", "GUIDANCE", "HOTEL", "OWNER", "PRIORITY", "TENSION", "VARIATION", "ANXIETY", "AWARENESS", "BATH", "BREAD", "CANDIDATE", "CLIMATE", "CONFUSION", "ELEVATOR", "EMOTION", "EMPLOYEE", "EMPLOYER", "GUEST", "HEIGHT", "MALL", "MANAGER", "OPERATION", "RECORDING", "SAMPLE", "CHARITY", "COUSIN", "DISASTER", "EDITOR", "EXTENT", "FEEDBACK", "GUITAR", "HOMEWORK", "LEADER", "OUTCOME", "PROMOTION", "REVENUE", "SESSION", "SINGER", "TENNIS", "BASKET", "BONUS", "CABINET", "CHILDHOOD", "CHURCH", "CLOTHES", "COFFEE", "DINNER", "DRAWING", "HAIR", "HEARING", "JUDGMENT", "MODE", "ORANGE", "POETRY", "POLICE", "PROCEDURE", "QUEEN", "RATIO", "RELATION", "SECTOR", "SIGNATURE", "SONG", "TOOTH", "TOWN", "VEHICLE", "VOLUME", "WIFE", "ACCIDENT", "AIRPORT", "ARRIVAL", "BASEBALL", "CHAPTER", "COMMITTEE", "DATABASE", "ERROR", "FARMER", "GATE", "GIRL", "HALL", "HISTORIAN", "HOSPITAL", "INJURY", "MEAL", "POEM", "PRESENCE", "PROPOSAL", "RECEPTION", "RIVER", "SPEECH", "VILLAGE", "WARNING", "WINNER", "WORKER", "WRITER", "BREATH", "BUYER", "CHEST", "CHOCOLATE", "COOKIE", "COURAGE", "DESK", "DRAWER", "GARBAGE", "GROCERY", "HONEY", "INSECT", "INSPECTOR", "KING", "LADDER", "MENU", "PENALTY", "PIANO", "POTATO", "PROFESSOR", "QUANTITY", "REACTION", "SALAD", "SISTER", "TONGUE", "WEAKNESS", "WEDDING", "AFFAIR", "AMBITION", "ANALYST", "APPLE", "ASSISTANT", "BATHROOM", "BEDROOM", "BEER", "BIRTHDAY", "CHEEK", "CLIENT", "DEPARTURE", "DIAMOND", "DIRT", "FORTUNE", "FUNERAL", "GENE", "INTENTION", "LADY", "MIDNIGHT", "PASSENGER", "PIZZA", "PLATFORM", "POET", "POLLUTION", "SHIRT", "SPEAKER", "STRANGER", "SURGERY", "SYMPATHY", "TALE", "THROAT", "TRAINER", "UNCLE", "YOUTH", "TIME", "WORK", "FILM", "WATER", "MONEY", "EXAMPLE", "BUSINESS", "STUDY", "GAME", "LIFE", "FORM", "PLACE", "NUMBER", "PART", "FIELD", "FISH", "BACK", "PROCESS", "HEAT", "HAND", "BOOK", "POINT", "TYPE", "HOME", "ECONOMY", "VALUE", "BODY", "MARKET", "GUIDE", "INTEREST", "STATE", "RADIO", "COURSE", "COMPANY", "PRICE", "SIZE", "CARD", "LIST", "MIND", "TRADE", "LINE", "CARE", "GROUP", "RISK", "WORD", "FORCE", "LIGHT", "TRAINING", "NAME", "SCHOOL", "AMOUNT", "LEVEL", "ORDER", "PRACTICE", "RESEARCH", "SENSE", "SERVICE", "PIECE", "BOSS", "SPORT", "HOUSE", "PAGE", "TERM", "TEST", "ANSWER", "SOUND", "FOCUS", "MATTER", "KIND", "SOIL", "BOARD", "PICTURE", "ACCESS", "GARDEN", "RANGE", "RATE", "REASON", "FUTURE", "SITE", "DEMAND", "EXERCISE", "IMAGE", "CASE", "CAUSE", "COAST", "ACTION", "BOAT", "RECORD", "RESULT", "SECTION", "BUILDING", "MOUSE", "CASH", "CLASS", "PERIOD", "PLAN", "STORE", "SIDE", "SUBJECT", "SPACE", "RULE", "STOCK", "WEATHER", "CHANCE", "FIGURE", "MODEL", "SOURCE", "BEGINNING", "EARTH", "PROGRAM", "CHICKEN", "DESIGN", "FEATURE", "HEAD", "MATERIAL", "PURPOSE", "QUESTION", "ROCK", "SALT", "BIRTH", "OBJECT", "SCALE", "NOTE", "PROFIT", "RENT", "SPEED", "STYLE", "BANK", "CRAFT", "STANDARD", "EXCHANGE", "FIRE", "POSITION", "PRESSURE", "STRESS", "ADVANTAGE", "BENEFIT", "FRAME", "ISSUE", "STEP", "CYCLE", "FACE", "ITEM", "METAL", "PAINT", "REVIEW", "ROOM", "SCREEN", "STRUCTURE", "VIEW", "ACCOUNT", "BALL", "MEDIUM", "SHARE", "BALANCE", "BOTTOM", "CHOICE", "GIFT", "IMPACT", "MACHINE", "SHAPE", "TOOL", "WIND", "ADDRESS", "CAREER", "CULTURE", "MORNING", "SIGN", "TABLE", "TASK", "CONDITION", "CONTACT", "CREDIT", "HOPE", "NETWORK", "NORTH", "SQUARE", "ATTEMPT", "DATE", "EFFECT", "LINK", "POST", "STAR", "VOICE", "CAPITAL", "CHALLENGE", "FRIEND", "SHOT", "BRUSH", "DEBATE", "EXIT", "FRONT", "FUNCTION", "LACK", "PLANT", "PLASTIC", "SPOT", "SUMMER", "TASTE", "THEME", "TRACK", "WING", "BRAIN", "BUTTON", "CLICK", "DESIRE", "FOOT", "INFLUENCE", "NOTICE", "RAIN", "WALL", "BASE", "DAMAGE", "DISTANCE", "FEELING", "PAIR", "SAVINGS", "STAFF", "SUGAR", "TARGET", "TEXT", "ANIMAL", "AUTHOR", "BUDGET", "DISCOUNT", "FILE", "GROUND", "LESSON", "MINUTE", "OFFICER", "PHASE", "REFERENCE", "REGISTER", "STAGE", "STICK", "TITLE", "TROUBLE", "BOWL", "BRIDGE", "CAMPAIGN", "CHARACTER", "CLUB", "EDGE", "EVIDENCE", "LETTER", "LOCK", "NOVEL", "OPTION", "PACK", "PARK", "QUARTER", "SKIN", "SORT", "WEIGHT", "BABY", "DISH", "FACTOR", "FRUIT", "GLASS", "JOINT", "MASTER", "MUSCLE", "STRENGTH", "TRAFFIC", "TRIP", "VEGETABLE", "APPEAL", "CHART", "GEAR", "IDEAL", "KITCHEN", "LAND", "MOTHER", "PARTY", "PRINCIPLE", "RELATIVE", "SALE", "SEASON", "SIGNAL", "SPIRIT", "STREET", "TREE", "WAVE", "BELT", "BENCH", "COPY", "DROP", "PATH", "PROGRESS", "PROJECT", "SOUTH", "STATUS", "STUFF", "TICKET", "TOUR", "ANGLE", "BREAKFAST", "DAUGHTER", "DEGREE", "DOCTOR", "DREAM", "DUTY", "ESSAY", "FATHER", "FINANCE", "HOUR", "JUICE", "LIMIT", "LUCK", "MILK", "MOUTH", "PEACE", "PIPE", "SEAT", "STABLE", "STORM", "SUBSTANCE", "TEAM", "TRICK", "AFTERNOON", "BEACH", "BLANK", "CATCH", "CHAIN", "CREAM", "CREW", "DETAIL", "GOLD", "INTERVIEW", "MARK", "MATCH", "MISSION", "PAIN", "PLEASURE", "SCORE", "SCREW", "SHOP", "SHOWER", "SUIT", "TONE", "WINDOW", "AGENT", "BAND", "BLOCK", "BONE", "CALENDAR", "COAT", "CONTEST", "CORNER", "COURT", "DISTRICT", "DOOR", "EAST", "FINGER", "GARAGE", "GUARANTEE", "HOLE", "HOOK", "IMPLEMENT", "LAYER", "LECTURE", "MANNER", "MEETING", "NOSE", "PARKING", "PARTNER", "PROFILE", "RESPECT", "RICE", "ROUTINE", "SCHEDULE", "SWIMMING", "TELEPHONE", "WINTER", "AIRLINE", "BATTLE", "BILL", "CAKE", "CODE", "CURVE", "DESIGNER", "DIMENSION", "DRESS", "EASE", "EMERGENCY", "EVENING", "EXTENSION", "FARM", "FIGHT", "GRADE", "HOLIDAY", "HORROR", "HORSE", "HOST", "HUSBAND", "LOAN", "MISTAKE", "MOUNTAIN", "NAIL", "NOISE", "OCCASION", "PACKAGE", "PATIENT", "PHRASE", "PROOF", "RACE", "RELIEF", "SAND", "SENTENCE", "SHOULDER", "SMOKE", "STOMACH", "STRING", "TOURIST", "TOWEL", "VACATION", "WEST", "WHEEL", "WINE", "ASSOCIATE", "BORDER", "BRANCH", "BREAST", "BROTHER", "BUDDY", "BUNCH", "CHIP", "COACH", "CROSS", "DOCUMENT", "DRAFT", "DUST", "EXPERT", "FLOOR", "GOLF", "HABIT", "IRON", "JUDGE", "KNIFE", "LANDSCAPE", "LEAGUE", "MAIL", "MESS", "NATIVE", "OPENING", "PARENT", "PATTERN", "POOL", "POUND", "REQUEST", "SALARY", "SHAME", "SHELTER", "SHOE", "SILVER", "TACKLE", "TANK", "TRUST", "BELL", "BIKE", "BRICK", "CHAIR", "CLOSET", "CLUE", "COLLAR", "COMMENT", "DEVIL", "DIET", "FEAR", "FUEL", "GLOVE", "JACKET", "LUNCH", "MONITOR", "MORTGAGE", "NURSE", "PACE", "PANIC", "PEAK", "PLANE", "REWARD", "SANDWICH", "SHOCK", "SPRAY", "WEEKEND", "YARD", "ALARM", "BICYCLE", "BITE", "BLIND", "BOTTLE", "CABLE", "CANDLE", "CLERK", "CLOUD", "CONCERT", "COUNTER", "FLOWER", "HARM", "KNEE", "LAWYER", "LEATHER", "LOAD", "MIRROR", "NECK", "PENSION", "PLATE", "PURPLE", "SHIP", "SKIRT", "SLICE", "SNOW", "STROKE", "SWITCH", "TRASH", "TUNE", "ZONE", "ANGER", "AWARD", "BITTER", "BOOT", "CAMP", "CANDY", "CARPET", "CHAMPION", "CHANNEL", "CLOCK", "COMFORT", "CRACK", "ENGINEER", "ENTRANCE", "FAULT", "GRASS", "HELL", "HIGHLIGHT", "INCIDENT", "ISLAND", "JOKE", "JURY", "MATE", "MOTOR", "NERVE", "PASSAGE", "PRIDE", "PRIEST", "PRIZE", "PROMISE", "RESIDENT", "RESORT", "RING", "ROOF", "ROPE", "SAIL", "SCHEME", "SCRIPT", "SOCK", "STATION", "TOWER", "TRUCK", "WITNESS", "GUARD", "WATCH", "SPRING", "PITCH", "SLIDE", "STRIP", "TRAIN", "ROLL", "MINE", "BEAR", "PUNCH"];
 
 let gameState = { code: '', teams: 2, grid: 5, cards: [], cardsLeft: {}, turn: 'red', guessesRemaining: 0, eliminated: [],
-                  chatLog: [], gameOver: false, winner: '', myName: '', myTeam: 'red', myRole: 'guesser' };
+                  chatLog: [], gameOver: false, winner: '', turnSeconds: 0, turnStartedAt: 0, myName: '', myTeam: 'red', myRole: 'guesser' };
 let channel = null;
 
 // DOM
@@ -117,6 +117,7 @@ async function createGame() {
     const name = $('create-name').value.trim().slice(0, 20) || 'Anonymous';
     const teams = parseInt(createTeamsSelect.value, 10);
     const team = createTeamSelect.value, role = $('create-role').value;
+    const turnSeconds = parseInt($('create-timer').value, 10) || 0;
     const cards = generateBoard(teams);
     const cardsLeft = {};
     cards.forEach((c) => { if (c.team !== 'neutral' && c.team !== 'black') cardsLeft[c.team] = (cardsLeft[c.team] || 0) + 1; });
@@ -128,7 +129,7 @@ async function createGame() {
         let data = null, error = null;
         for (let attempt = 0; attempt < 2; attempt++) {
             ({ data, error } = await db.from('games').insert({
-                game_code: makeCode(), teams, grid: MODES[teams].grid, board_cards: cards, cards_left: cardsLeft, turn,
+                game_code: makeCode(), teams, grid: MODES[teams].grid, board_cards: cards, cards_left: cardsLeft, turn, turn_seconds: turnSeconds,
                 chat_log: [{ type: 'system', text: `Game created. ${teamLabel(turn)} starts.` }]
             }).select().single());
             if (!error || error.code !== '23505') break;
@@ -280,7 +281,11 @@ async function enterGame(row, { name, team, role }) {
                 pill.id = 'turn-indicator';
                 pill.setAttribute('aria-live', 'polite');
                 pill.setAttribute('aria-atomic', 'true');
-                scoreboardEl.appendChild(pill);
+                const timer = document.createElement('span');
+                timer.className = 'turn-timer hidden';
+                timer.id = 'turn-timer';
+                timer.setAttribute('role', 'timer');
+                scoreboardEl.append(pill, timer);
             }
         });
 
@@ -342,13 +347,39 @@ function syncStateWithDB(row) {
         gameOver: row.game_over,
         winner: row.winner || '',
         teams: row.teams || 2,
-        grid: row.grid || 5
+        grid: row.grid || 5,
+        turnSeconds: row.turn_seconds || 0,
+        turnStartedAt: row.turn_started_at ? new Date(row.turn_started_at).getTime() : Date.now()
     });
     renderBoard();
     updateUI();
     renderChat();
     renderGameOver();
+    tickTimer();
 }
+
+// ── Turn timer ──
+// The server owns the clock (turn_started_at + turn_seconds). When it runs out, every client in the room asks
+// timeout_turn to skip the turn; the server only acts if time is really up, so duplicate or early calls are harmless.
+// ponytail: countdown uses the local clock against the server timestamp, so a skewed device shows it a few seconds off;
+// the skip itself is still decided by the server.
+let timeoutCallAt = 0;
+function tickTimer() {
+    const el = $('turn-timer'), g = gameState;
+    if (!el) return;
+    const on = g.turnSeconds > 0 && !g.gameOver && !!channel;
+    el.classList.toggle('hidden', !on);
+    if (!on) return;
+    const left = Math.max(0, Math.ceil((g.turnStartedAt + g.turnSeconds * 1000 - Date.now()) / 1000));
+    el.textContent = `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    el.classList.toggle('low', left <= 10);
+    if (left === 0 && Date.now() - timeoutCallAt > 2000) {
+        timeoutCallAt = Date.now();
+        const code = g.code;
+        db.rpc('timeout_turn', { p_code: code }).then(({ data }) => { if (data && code === gameState.code) syncStateWithDB(data); });
+    }
+}
+setInterval(tickTimer, 250);
 
 // Same conditions handleCardClick enforces; used for the button `disabled` state and body.can-guess.
 function canGuess() {
