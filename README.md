@@ -60,6 +60,16 @@ Then open `http://localhost:8000`.
 
 Repository **Settings → Pages**, branch `main`, folder `/ (root)`. The game is static, so nothing else is needed.
 
+### 5. Deploy to Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FThe-AlphaWolf%2FCodeNames)
+
+1. Click the button above or go to [vercel.com/new](https://vercel.com/new).
+2. Import `The-AlphaWolf/CodeNames`.
+3. Keep default settings (Framework: Other, Root: `./`).
+4. Click **Deploy**.
+
+
 ## ⚠️ Limitations
 
 - **Identity is honor-system.** The browser tells the server which team and role it is. The server enforces the rules of the game (whose turn, how many guesses, valid hints), not who you are. A guesser who opens the developer tools can read the card colours. That is fine for a game among friends, not for a tournament.
