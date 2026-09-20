@@ -104,10 +104,11 @@ function mkPlayer(label, { url = 'http://localhost/', session } = {}) {
     return p;
 }
 
-async function create(label, teams, team, role) {
+async function create(label, teams, team, role, mode = 'normal') {
     const p = mkPlayer(label);
     p.val('create-name', label); p.val('create-teams', String(teams));
     p.doc.getElementById('create-teams').dispatchEvent(new p.w.Event('change'));
+    if (p.doc.getElementById('create-mode')) p.val('create-mode', mode);
     p.val('create-team', team);
     if (p.doc.getElementById('create-role')) p.val('create-role', role);
     p.click('create-btn'); await sleep(150);
@@ -208,7 +209,7 @@ check('chat: spymaster cannot send chat', !L.all[0].txt('chat-log').includes('bl
 const T0 = st.turn, O0 = nextOf(L, T0);
 // hint validation
 const before = s(L).chatLog.length;
-for (const [w, n, msg] of [['two words', 1, 'one word'], ['abcdefghijklmnopqrstu', 1, 'one word'], ['ZEPHYRIA', 0, 'Number must be'], ['ZEPHYRIA', 9, 'Number must be'], [s(L).cards.find((c) => !c.revealed).word, 1, 'on the board']]) {
+for (const [w, n, msg] of [['two words', 1, 'one word'], ['abcdefghijklmnop', 1, 'one word'], ['ZEPHYRIA', 0, 'Number must be'], ['ZEPHYRIA', 9, 'Number must be'], [s(L).cards.find((c) => !c.revealed).word, 1, 'on the board']]) {
     await hint(L, T0, w, n);
     check(`hint rejected: "${w}" / ${n}`, L.P[T0].spy.toast().includes(msg) && s(L).guessesRemaining === 0 && s(L).chatLog.length === before, L.P[T0].spy.toast());
 }
@@ -236,17 +237,19 @@ L.P[T0].spy.card(0).click(); await settle(); check('spymaster card click ignored
 let c = unrevealed(L, T0)[0]; await reveal(L, T0, c.i);
 check('own card: count 7, turn unchanged, 1 guess left', s(L).cardsLeft[T0] === 7 && s(L).turn === T0 && s(L).guessesRemaining === 1);
 check('scoreboard shows 7', L.all[0].doc.querySelector(`.score[data-team=${T0}] .score-n`).textContent === '7');
-// neutral: turn passes, counts same
+// neutral: counts unchanged, guesses reaches 0 -> turn passes
 c = s(L).cards.map((x, i) => ({ ...x, i })).find((x) => x.team === 'neutral' && !x.revealed); await reveal(L, T0, c.i);
-check('neutral: turn passes, counts unchanged, guesses 0', s(L).turn === O0 && s(L).cardsLeft[T0] === 7 && s(L).cardsLeft[O0] === 8 && s(L).guessesRemaining === 0);
-// other's team card: decrement theirs, turn passes back
+check('neutral: turn passes when guesses reach 0, counts unchanged', s(L).turn === O0 && s(L).cardsLeft[T0] === 7 && s(L).cardsLeft[O0] === 8 && s(L).guessesRemaining === 0);
+
+// other team's card: decrement theirs, turn CONTINUES because guesses remaining > 0!
 await giveHintTo(L, O0, 2);
 c = unrevealed(L, T0)[0]; await reveal(L, O0, c.i);
-check("opponent's card: their count -1, turn passes", s(L).cardsLeft[T0] === 6 && s(L).turn === T0 && s(L).guessesRemaining === 0);
+check("opponent's card: their count -1, turn continues, 1 guess left", s(L).cardsLeft[T0] === 6 && s(L).turn === O0 && s(L).guessesRemaining === 1);
+
 // End Turn button
-await giveHintTo(L, T0, 1); L.P[T0].gu.click('end-turn-btn'); await settle();
-check('End Turn button passes turn, guesses 0', s(L).turn === O0 && s(L).guessesRemaining === 0);
-check('system line "X team\'s turn" in chat', L.all[0].txt('chat-log').includes(`${O0.toUpperCase()} team's turn`));
+L.P[O0].gu.click('end-turn-btn'); await settle();
+check('End Turn button passes turn, guesses 0', s(L).turn === T0 && s(L).guessesRemaining === 0);
+check('system line "X team\'s turn" in chat', L.all[0].txt('chat-log').includes(`${T0.toUpperCase()} team's turn`));
 invariant(L, '2t midgame');
 check('all tabs in sync', synced(L));
 
@@ -910,6 +913,99 @@ console.log('\n== Cleanup: empty chat entries + cards without a word ==');
     p2.click('role-toggle-btn');
     await sleep(80);
     check('role: second player successfully claims vacant spymaster slot', p2.st.myRole === 'spymaster');
+}
+
+// ═════════ Suspense Mode & 15-char Hint & Turn Continuation ═════════
+console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
+{
+    // Mode select in lobby
+    const pLobby = mkPlayer('Tester');
+    check('mode: create-mode select in lobby', pLobby.doc.getElementById('create-mode') !== null);
+    check('mode: options include normal and suspense',
+        pLobby.doc.querySelector('#create-mode option[value="normal"]') !== null &&
+        pLobby.doc.querySelector('#create-mode option[value="suspense"]') !== null);
+
+    // 15-char hint limit verification
+    check('hint: 15 letters valid regex', pLobby.ev("HINT_RE.test('A'.repeat(15))"));
+    check('hint: 16 letters rejected regex', !pLobby.ev("HINT_RE.test('A'.repeat(16))"));
+
+    // Create Suspense game
+    const sSpy = await create('red-spy-s', 2, 'red', 'spymaster', 'suspense');
+    const sCode = sSpy.st.code;
+    const sGu = await join('red-gu-s', sCode, 'red', 'guesser');
+    const bSpy = await join('blue-spy-s', sCode, 'blue', 'spymaster');
+    const bGu = await join('blue-gu-s', sCode, 'blue', 'guesser');
+    await sleep(150);
+
+    const sRow = await be.select(sCode);
+    check('suspense: game created with game_mode = suspense in DB', sRow.data.game_mode === 'suspense');
+    check('suspense: display-game-mode badge shows SUSPENSE in all tabs',
+        [sSpy, sGu, bSpy, bGu].every((p) => p.txt('display-game-mode') === 'SUSPENSE'));
+
+    // Guesser has no active suspense controls before hint
+    check('suspense: controls hidden before hint', sGu.doc.getElementById('suspense-controls').classList.contains('hidden'));
+
+    // Find starting team
+    const startTeam = sGu.st.turn;
+    const otherTeam = startTeam === 'red' ? 'blue' : 'red';
+    const startSpy = startTeam === 'red' ? sSpy : bSpy;
+    const startGu = startTeam === 'red' ? sGu : bGu;
+
+    // Spymaster gives hint with 3 words
+    startSpy.val('hint-word', 'TARGET');
+    startSpy.val('hint-number', '3');
+    startSpy.click('submit-hint');
+    await settle();
+
+    check('suspense: hint accepted, 3 guesses left', startGu.st.guessesRemaining === 3);
+    check('suspense: controls visible for active guesser', !startGu.doc.getElementById('suspense-controls').classList.contains('hidden'));
+    check('suspense: initial selection count 0', startGu.txt('suspense-count').includes('Selected: 0 / 3 words'));
+    check('suspense: submit button disabled initially', startGu.doc.getElementById('submit-guesses-btn').disabled === true);
+
+    // Guesser clicks card 0 to select
+    startGu.card(0).click();
+    await sleep(50);
+    check('suspense: card 0 selected class added', startGu.card(0).classList.contains('selected'));
+    check('suspense: selection count updated to 1', startGu.txt('suspense-count').includes('Selected: 1 / 3 words'));
+    check('suspense: submit button enabled', startGu.doc.getElementById('submit-guesses-btn').disabled === false);
+
+    // Guesser clicks card 1 to select
+    startGu.card(1).click();
+    await sleep(50);
+    check('suspense: card 1 selected class added', startGu.card(1).classList.contains('selected'));
+    check('suspense: selection count updated to 2', startGu.txt('suspense-count').includes('Selected: 2 / 3 words'));
+
+    // Guesser clicks card 1 again to deselect
+    startGu.card(1).click();
+    await sleep(50);
+    check('suspense: card 1 selected class removed after toggle', !startGu.card(1).classList.contains('selected'));
+    check('suspense: selection count decremented to 1', startGu.txt('suspense-count').includes('Selected: 1 / 3 words'));
+
+    // Guesser clicks Clear
+    startGu.click('clear-selection-btn');
+    await sleep(50);
+    check('suspense: clear button resets selection to 0', startGu.txt('suspense-count').includes('Selected: 0 / 3 words'));
+    check('suspense: card 0 selected class removed by clear', !startGu.card(0).classList.contains('selected'));
+    check('suspense: submit button disabled after clear', startGu.doc.getElementById('submit-guesses-btn').disabled === true);
+
+    // Guesser selects 2 cards (e.g. card 0 and card 1, ensuring neither is assassin for now)
+    const safeCards = startGu.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team !== 'black').slice(0, 2);
+    startGu.card(safeCards[0].i).click();
+    startGu.card(safeCards[1].i).click();
+    await sleep(50);
+    check('suspense: 2 safe cards selected', startGu.txt('suspense-count').includes('Selected: 2 / 3 words'));
+
+    // Submit batch
+    startGu.click('submit-guesses-btn');
+    await settle();
+
+    // Verify both cards revealed in DB and turn concluded
+    const updatedRow = await be.select(sCode);
+    check('suspense: card 1 revealed on server', updatedRow.data.board_cards[safeCards[0].i].revealed === true);
+    check('suspense: card 2 revealed on server', updatedRow.data.board_cards[safeCards[1].i].revealed === true);
+    check('suspense: turn concluded and passed to next team', updatedRow.data.turn === otherTeam);
+    check('suspense: guesses remaining reset to 0', updatedRow.data.guesses_remaining === 0);
+    check('suspense: controls hidden after turn end', startGu.doc.getElementById('suspense-controls').classList.contains('hidden'));
 }
 
 // ═════════ error log ═════════

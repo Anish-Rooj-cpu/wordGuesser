@@ -14,6 +14,7 @@ create table games (
   chat_log          jsonb not null default '[]'::jsonb,
   game_over         boolean not null default false,
   winner            text not null default '',       -- team id or ''
+  game_mode         text not null default 'normal' check (game_mode in ('normal', 'suspense')),
   turn_seconds      int  not null default 0 check (turn_seconds between 0 and 600), -- 0 = untimed
   turn_started_at   timestamptz not null default now(), -- clock restarts on each new turn and on each hint
   created_at        timestamptz not null default now(),
@@ -104,7 +105,95 @@ begin
         g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(ct) || ' wins!');
       end if;
     end if;
-    if not g.game_over and (ct <> p_team or g.guesses_remaining = 0) then
+    if not g.game_over and g.guesses_remaining = 0 then
+      g.turn := next_team(g.turn, g.teams, g.eliminated);
+      g.guesses_remaining := 0;
+      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
+    end if;
+  end if;
+
+  if g.game_over then
+    select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
+      from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
+  end if;
+
+  update games set
+    board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
+    guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
+    game_over = g.game_over, winner = g.winner, updated_at = now(),
+    turn_started_at = case when turn <> g.turn then now() else turn_started_at end
+  where game_code = p_code
+  returning * into g;
+  return g;
+end $$;
+
+-- ---------- reveal_cards_batch (for suspense mode) ----------
+create or replace function reveal_cards_batch(p_code text, p_team text, p_indices int[])
+returns games language plpgsql security definer set search_path = public as $$
+declare
+  g              games;
+  card           jsonb;
+  ct             text;
+  idx            int;
+  rem            text[];
+  has_assassin   boolean := false;
+  finished_team  text := null;
+begin
+  select * into g from games where game_code = p_code for update;
+  if not found then raise exception 'Game not found'; end if;
+  if g.game_over then raise exception 'Game is over'; end if;
+  if g.turn <> p_team then raise exception 'Not your turn'; end if;
+  if g.guesses_remaining <= 0 then raise exception 'Wait for a hint'; end if;
+  if p_indices is null or cardinality(p_indices) < 1 then raise exception 'Must select at least 1 card'; end if;
+  if cardinality(p_indices) > g.guesses_remaining then raise exception 'Cannot select more than remaining guesses'; end if;
+  if (select count(distinct x) from unnest(p_indices) x) <> cardinality(p_indices) then
+    raise exception 'Duplicate cards selected';
+  end if;
+
+  -- Validate all indices and unrevealed status before modifying
+  foreach idx in array p_indices loop
+    if idx < 0 or idx >= jsonb_array_length(g.board_cards) then raise exception 'Bad card'; end if;
+    card := g.board_cards -> idx;
+    if (card ->> 'revealed')::boolean then raise exception 'Already revealed'; end if;
+  end loop;
+
+  -- Apply reveals
+  foreach idx in array p_indices loop
+    card := g.board_cards -> idx;
+    ct := card ->> 'team';
+    g.board_cards := jsonb_set(g.board_cards, array[idx::text, 'revealed'], 'true'::jsonb);
+    g.guesses_remaining := g.guesses_remaining - 1;
+
+    if ct = 'black' then
+      has_assassin := true;
+    elsif ct <> 'neutral' then
+      g.cards_left := jsonb_set(g.cards_left, array[ct], to_jsonb((g.cards_left ->> ct)::int - 1));
+      if (g.cards_left ->> ct)::int = 0 and ct <> all(g.eliminated) then
+        finished_team := ct;
+      end if;
+    end if;
+  end loop;
+
+  if has_assassin then
+    g.eliminated := array_append(g.eliminated, p_team);
+    g.chat_log := g.chat_log || jsonb_build_object(
+      'type','system','text', upper(p_team) || ' revealed an assassin and is eliminated!');
+    rem := remaining_teams(g.teams, g.eliminated);
+    if cardinality(rem) <= 1 then
+      g.game_over := true;
+      g.winner := coalesce(rem[1], '');
+      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.winner) || ' wins!');
+    else
+      g.turn := next_team(g.turn, g.teams, g.eliminated);
+      g.guesses_remaining := 0;
+      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
+    end if;
+  else
+    if finished_team is not null then
+      g.game_over := true;
+      g.winner := finished_team;
+      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(finished_team) || ' wins!');
+    else
       g.turn := next_team(g.turn, g.teams, g.eliminated);
       g.guesses_remaining := 0;
       g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
@@ -138,7 +227,7 @@ begin
   if g.guesses_remaining > 0 then raise exception 'Your team still has guesses'; end if;
 
   w := upper(trim(p_word));
-  if w !~ '^[A-Z][A-Z''-]{0,19}$' then raise exception 'Hint must be one word, letters only, max 20 characters'; end if;
+  if w !~ '^[A-Z][A-Z''-]{0,14}$' then raise exception 'Hint must be one word, letters only, max 15 characters'; end if;
   max_n := (g.cards_left ->> p_team)::int;
   if p_n is null or p_n < 1 or p_n > max_n then raise exception 'Number must be between 1 and %', max_n; end if;
   if exists (select 1 from jsonb_array_elements(g.board_cards) c where upper(c ->> 'word') = w) then
@@ -239,5 +328,5 @@ end $$;
 revoke all on table games from anon;
 grant select, insert on table games to anon;
 grant execute on function next_team(text,int,text[]), remaining_teams(int,text[]), derive_cards_left(jsonb),
-  reveal_card(text,text,int), give_hint(text,text,text,int), end_turn(text,text), timeout_turn(text),
+  reveal_card(text,text,int), reveal_cards_batch(text,text,int[]), give_hint(text,text,text,int), end_turn(text,text), timeout_turn(text),
   send_chat(text,text,text,text), restart_game(text,jsonb) to anon;

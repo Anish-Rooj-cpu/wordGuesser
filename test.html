@@ -51,8 +51,8 @@
             check('words: script.js readable over http (serve this folder, file:// blocks fetch)', false);
         }
 
-        for (const ok of ['OCEAN', "O'NEIL", 'SELF-MADE', 'A'.repeat(20)]) check(`HINT_RE accepts "${ok}"`, HINT_RE.test(ok));
-        for (const bad of ['TWO WORDS', '', 'A'.repeat(21), 'OCEAN2', '-DASH', ' OCEAN']) check(`HINT_RE rejects "${bad}"`, !HINT_RE.test(bad));
+        for (const ok of ['OCEAN', "O'NEIL", 'SELF-MADE', 'A'.repeat(15)]) check(`HINT_RE accepts "${ok}"`, HINT_RE.test(ok));
+        for (const bad of ['TWO WORDS', '', 'A'.repeat(16), 'OCEAN2', '-DASH', ' OCEAN']) check(`HINT_RE rejects "${bad}"`, !HINT_RE.test(bad));
 
         const line = failed ? 'FAILED' : 'ALL PASSED';
         out.insertAdjacentHTML('beforeend', `<h3 class="${failed ? 'fail' : ''}">${line}</h3>`);

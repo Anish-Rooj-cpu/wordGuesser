@@ -2,7 +2,7 @@
 const TEAMS = ['red', 'blue', 'green', 'cyan'];
 const MODES = { 2: { grid: 5, perTeam: 8 }, 3: { grid: 6, perTeam: 8 }, 4: { grid: 7, perTeam: 9 } };
 // assassins = teams − 1; neutral = grid² − assassins − teams×perTeam  → 8 / 10 / 10
-const HINT_RE = /^[A-Za-z][A-Za-z'-]{0,19}$/;
+const HINT_RE = /^[A-Za-z][A-Za-z'-]{0,14}$/;
 
 function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {

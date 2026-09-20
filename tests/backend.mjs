@@ -3,7 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 
 const schema = new URL('../sql/schema.sql', import.meta.url);
-const ser = (v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
+const ser = (v) => (Array.isArray(v) && (v.length === 0 || typeof v[0] === 'number') ? v : typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
 const fail = (e) => ({ data: null, error: { message: e.message, code: e.code } });
 
 export async function createBackend() {

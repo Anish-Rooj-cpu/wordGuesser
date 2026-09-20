@@ -46,6 +46,13 @@
                         </select>
                     </div>
                     <div class="field">
+                        <label for="create-mode">Game Mode</label>
+                        <select id="create-mode">
+                            <option value="normal" selected>Normal Mode</option>
+                            <option value="suspense">Suspense Mode</option>
+                        </select>
+                    </div>
+                    <div class="field">
                         <label for="create-team">Team</label>
                         <select id="create-team">
                             <option value="red">🔴  Red</option>
@@ -113,6 +120,7 @@
             <div class="topbar-left">
                 <h1 class="topbar-brand">🕵️ Codenames</h1>
                 <span class="badge badge-code" id="display-game-id"></span>
+                <span class="badge badge-mode" id="display-game-mode"></span>
                 <span class="badge badge-role" id="player-info-badge"></span>
                 <button id="role-toggle-btn" class="btn btn-secondary btn-small">🕵️ Become Spymaster</button>
                 <button id="rules-btn-game" class="btn btn-secondary btn-small">📖 Rules</button>
@@ -129,6 +137,11 @@
         <div class="game-body">
             <div class="board-area" role="main">
                 <div id="board" class="board" role="group" aria-label="Word board" tabindex="-1"></div>
+                <div id="suspense-controls" class="suspense-bar hidden" role="toolbar" aria-label="Suspense mode guess submission">
+                    <span id="suspense-count" class="suspense-count">Selected: 0 words</span>
+                    <button id="submit-guesses-btn" class="btn btn-primary btn-small" disabled>Submit Guesses</button>
+                    <button id="clear-selection-btn" class="btn btn-secondary btn-small" disabled>Clear</button>
+                </div>
                 <div id="connect-error" class="connect-error hidden" role="alert">
                     <p>Couldn't connect to the room.</p>
                     <div class="modal-actions">
@@ -150,7 +163,7 @@
                 <div id="chat-log" class="chat-log" role="log" aria-live="off" aria-label="Chat and hints" tabindex="0"></div>
                 <div class="chat-input-row hidden" id="hint-controls">
                     <label class="sr-only" for="hint-word">Hint word</label>
-                    <input type="text" id="hint-word" maxlength="20" placeholder="One-word hint (≤20)" autocomplete="off" spellcheck="false">
+                    <input type="text" id="hint-word" maxlength="15" placeholder="One-word hint (≤15)" autocomplete="off" spellcheck="false">
                     <label class="sr-only" for="hint-number">Number</label>
                     <input type="number" id="hint-number" min="1" placeholder="#">
                     <button id="submit-hint" class="btn btn-send">Hint</button>
@@ -184,8 +197,9 @@
                 <p><strong>Goal:</strong> Reveal all your team's words before the others do.</p>
                 <ul class="rules-list">
                     <li><strong>2 teams:</strong> 5×5 board — 8 words per team, 8 yellow neutrals, 1 assassin. <strong>3 teams:</strong> 6×6 — 8 per team, 10 neutrals, 2 assassins. <strong>4 teams:</strong> 7×7 — 9 per team, 10 neutrals, 3 assassins.</li>
-                    <li>The <strong>Spymaster</strong> sees all colours and gives <strong>ONE word</strong> (max 20 letters) plus a <strong>number</strong> (e.g. <em>"Ocean - 2"</em>), only when their team has no guesses left. The word cannot be a word on the board.</li>
-                    <li>The <strong>Guessers</strong> get exactly that many guesses. Your own team's card: keep going. Another team's card or a yellow neutral: your turn ends (a neutral gives no penalty and no point).</li>
+                    <li>The <strong>Spymaster</strong> sees all colours and gives <strong>ONE word</strong> (max 15 letters) plus a <strong>number</strong> (e.g. <em>"Ocean - 2"</em>), only when their team has no guesses left. The word cannot be a word on the board.</li>
+                    <li><strong>Normal Mode:</strong> Cards reveal one by one upon click. Your turn does not end until all hint guesses are used or you click End Turn (even if choosing neutrals or opponents).</li>
+                    <li><strong>Suspense Mode:</strong> Guessers select between 1 and the hint number of words, then click "Submit Guesses" to dramatically reveal them all together!</li>
                     <li><strong>Assassin:</strong> your team is eliminated; the other teams keep playing.</li>
                     <li>A team wins by revealing all its words (whoever revealed the last one) or by being the last team not eliminated.</li>
                     <li>Guessers of all teams can chat; Spymasters can only send hints.</li>

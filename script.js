@@ -8,25 +8,28 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const words = ["PEOPLE", "HISTORY", "WORLD", "FAMILY", "HEALTH", "SYSTEM", "COMPUTER", "MEAT", "YEAR", "MUSIC", "PERSON", "READING", "METHOD", "DATA", "FOOD", "THEORY", "BIRD", "PROBLEM", "SOFTWARE", "CONTROL", "KNOWLEDGE", "POWER", "ABILITY", "ECONOMICS", "LOVE", "INTERNET", "SCIENCE", "LIBRARY", "NATURE", "FACT", "PRODUCT", "IDEA", "AREA", "SOCIETY", "ACTIVITY", "STORY", "INDUSTRY", "MEDIA", "THING", "OVEN", "COMMUNITY", "SAFETY", "QUALITY", "LANGUAGE", "PLAYER", "VARIETY", "VIDEO", "WEEK", "SECURITY", "COUNTRY", "EXAM", "MOVIE", "EQUIPMENT", "PHYSICS", "ANALYSIS", "POLICY", "SERIES", "THOUGHT", "BASIS", "BOYFRIEND", "DIRECTION", "STRATEGY", "ARMY", "CAMERA", "FREEDOM", "PAPER", "CHILD", "INSTANCE", "MONTH", "TRUTH", "MARKETING", "WRITING", "ARTICLE", "GOAL", "NEWS", "AUDIENCE", "FISHING", "GROWTH", "INCOME", "MARRIAGE", "USER", "FAILURE", "MEANING", "MEDICINE", "TEACHER", "NIGHT", "CHEMISTRY", "DISEASE", "DISK", "ENERGY", "NATION", "ROAD", "ROLE", "SOUP", "LOCATION", "SUCCESS", "ADDITION", "APARTMENT", "EDUCATION", "MATH", "MOMENT", "PAINTING", "POLITICS", "ATTENTION", "DECISION", "EVENT", "PROPERTY", "SHOPPING", "STUDENT", "WOOD", "OFFICE", "PRESIDENT", "UNIT", "CATEGORY", "CIGARETTE", "CONTEXT", "DRIVER", "FLIGHT", "LENGTH", "MAGAZINE", "NEWSPAPER", "TEACHING", "CELL", "DEALER", "FINDING", "LAKE", "MEMBER", "MESSAGE", "PHONE", "SCENE", "CONCEPT", "CUSTOMER", "DEATH", "HOUSING", "INFLATION", "INSURANCE", "MOOD", "WOMAN", "ADVICE", "BLOOD", "EFFORT", "OPINION", "PAYMENT", "REALITY", "SITUATION", "SKILL", "STATEMENT", "WEALTH", "CITY", "COUNTY", "DEPTH", "ESTATE", "HEART", "PHOTO", "RECIPE", "STUDIO", "TOPIC", "PASSION", "RESOURCE", "SETTING", "AGENCY", "COLLEGE", "CRITICISM", "DEBT", "MEMORY", "PATIENCE", "SECRETARY", "SOLUTION", "ASPECT", "ATTITUDE", "DIRECTOR", "RESPONSE", "SELECTION", "STORAGE", "VERSION", "ALCOHOL", "ARGUMENT", "COMPLAINT", "CONTRACT", "EMPHASIS", "HIGHWAY", "LOSS", "STEAK", "UNION", "AGREEMENT", "CANCER", "CURRENCY", "ENTRY", "MIXTURE", "REGION", "REPUBLIC", "TRADITION", "VIRUS", "ACTOR", "CLASSROOM", "DELIVERY", "DEVICE", "DRAMA", "ELECTION", "ENGINE", "FOOTBALL", "GUIDANCE", "HOTEL", "OWNER", "PRIORITY", "TENSION", "VARIATION", "ANXIETY", "AWARENESS", "BATH", "BREAD", "CANDIDATE", "CLIMATE", "CONFUSION", "ELEVATOR", "EMOTION", "EMPLOYEE", "EMPLOYER", "GUEST", "HEIGHT", "MALL", "MANAGER", "OPERATION", "RECORDING", "SAMPLE", "CHARITY", "COUSIN", "DISASTER", "EDITOR", "EXTENT", "FEEDBACK", "GUITAR", "HOMEWORK", "LEADER", "OUTCOME", "PROMOTION", "REVENUE", "SESSION", "SINGER", "TENNIS", "BASKET", "BONUS", "CABINET", "CHILDHOOD", "CHURCH", "CLOTHES", "COFFEE", "DINNER", "DRAWING", "HAIR", "HEARING", "JUDGMENT", "MODE", "ORANGE", "POETRY", "POLICE", "PROCEDURE", "QUEEN", "RATIO", "RELATION", "SECTOR", "SIGNATURE", "SONG", "TOOTH", "TOWN", "VEHICLE", "VOLUME", "WIFE", "ACCIDENT", "AIRPORT", "ARRIVAL", "BASEBALL", "CHAPTER", "COMMITTEE", "DATABASE", "ERROR", "FARMER", "GATE", "GIRL", "HALL", "HISTORIAN", "HOSPITAL", "INJURY", "MEAL", "POEM", "PRESENCE", "PROPOSAL", "RECEPTION", "RIVER", "SPEECH", "VILLAGE", "WARNING", "WINNER", "WORKER", "WRITER", "BREATH", "BUYER", "CHEST", "CHOCOLATE", "COOKIE", "COURAGE", "DESK", "DRAWER", "GARBAGE", "GROCERY", "HONEY", "INSECT", "INSPECTOR", "KING", "LADDER", "MENU", "PENALTY", "PIANO", "POTATO", "PROFESSOR", "QUANTITY", "REACTION", "SALAD", "SISTER", "TONGUE", "WEAKNESS", "WEDDING", "AFFAIR", "AMBITION", "ANALYST", "APPLE", "ASSISTANT", "BATHROOM", "BEDROOM", "BEER", "BIRTHDAY", "CHEEK", "CLIENT", "DEPARTURE", "DIAMOND", "DIRT", "FORTUNE", "FUNERAL", "GENE", "INTENTION", "LADY", "MIDNIGHT", "PASSENGER", "PIZZA", "PLATFORM", "POET", "POLLUTION", "SHIRT", "SPEAKER", "STRANGER", "SURGERY", "SYMPATHY", "TALE", "THROAT", "TRAINER", "UNCLE", "YOUTH", "TIME", "WORK", "FILM", "WATER", "MONEY", "EXAMPLE", "BUSINESS", "STUDY", "GAME", "LIFE", "FORM", "PLACE", "NUMBER", "PART", "FIELD", "FISH", "BACK", "PROCESS", "HEAT", "HAND", "BOOK", "POINT", "TYPE", "HOME", "ECONOMY", "VALUE", "BODY", "MARKET", "GUIDE", "INTEREST", "STATE", "RADIO", "COURSE", "COMPANY", "PRICE", "SIZE", "CARD", "LIST", "MIND", "TRADE", "LINE", "CARE", "GROUP", "RISK", "WORD", "FORCE", "LIGHT", "TRAINING", "NAME", "SCHOOL", "AMOUNT", "LEVEL", "ORDER", "PRACTICE", "RESEARCH", "SENSE", "SERVICE", "PIECE", "BOSS", "SPORT", "HOUSE", "PAGE", "TERM", "TEST", "ANSWER", "SOUND", "FOCUS", "MATTER", "KIND", "SOIL", "BOARD", "PICTURE", "ACCESS", "GARDEN", "RANGE", "RATE", "REASON", "FUTURE", "SITE", "DEMAND", "EXERCISE", "IMAGE", "CASE", "CAUSE", "COAST", "ACTION", "BOAT", "RECORD", "RESULT", "SECTION", "BUILDING", "MOUSE", "CASH", "CLASS", "PERIOD", "PLAN", "STORE", "SIDE", "SUBJECT", "SPACE", "RULE", "STOCK", "WEATHER", "CHANCE", "FIGURE", "MODEL", "SOURCE", "BEGINNING", "EARTH", "PROGRAM", "CHICKEN", "DESIGN", "FEATURE", "HEAD", "MATERIAL", "PURPOSE", "QUESTION", "ROCK", "SALT", "BIRTH", "OBJECT", "SCALE", "NOTE", "PROFIT", "RENT", "SPEED", "STYLE", "BANK", "CRAFT", "STANDARD", "EXCHANGE", "FIRE", "POSITION", "PRESSURE", "STRESS", "ADVANTAGE", "BENEFIT", "FRAME", "ISSUE", "STEP", "CYCLE", "FACE", "ITEM", "METAL", "PAINT", "REVIEW", "ROOM", "SCREEN", "STRUCTURE", "VIEW", "ACCOUNT", "BALL", "MEDIUM", "SHARE", "BALANCE", "BOTTOM", "CHOICE", "GIFT", "IMPACT", "MACHINE", "SHAPE", "TOOL", "WIND", "ADDRESS", "CAREER", "CULTURE", "MORNING", "SIGN", "TABLE", "TASK", "CONDITION", "CONTACT", "CREDIT", "HOPE", "NETWORK", "NORTH", "SQUARE", "ATTEMPT", "DATE", "EFFECT", "LINK", "POST", "STAR", "VOICE", "CAPITAL", "CHALLENGE", "FRIEND", "SHOT", "BRUSH", "DEBATE", "EXIT", "FRONT", "FUNCTION", "LACK", "PLANT", "PLASTIC", "SPOT", "SUMMER", "TASTE", "THEME", "TRACK", "WING", "BRAIN", "BUTTON", "CLICK", "DESIRE", "FOOT", "INFLUENCE", "NOTICE", "RAIN", "WALL", "BASE", "DAMAGE", "DISTANCE", "FEELING", "PAIR", "SAVINGS", "STAFF", "SUGAR", "TARGET", "TEXT", "ANIMAL", "AUTHOR", "BUDGET", "DISCOUNT", "FILE", "GROUND", "LESSON", "MINUTE", "OFFICER", "PHASE", "REFERENCE", "REGISTER", "STAGE", "STICK", "TITLE", "TROUBLE", "BOWL", "BRIDGE", "CAMPAIGN", "CHARACTER", "CLUB", "EDGE", "EVIDENCE", "LETTER", "LOCK", "NOVEL", "OPTION", "PACK", "PARK", "QUARTER", "SKIN", "SORT", "WEIGHT", "BABY", "DISH", "FACTOR", "FRUIT", "GLASS", "JOINT", "MASTER", "MUSCLE", "STRENGTH", "TRAFFIC", "TRIP", "VEGETABLE", "APPEAL", "CHART", "GEAR", "IDEAL", "KITCHEN", "LAND", "MOTHER", "PARTY", "PRINCIPLE", "RELATIVE", "SALE", "SEASON", "SIGNAL", "SPIRIT", "STREET", "TREE", "WAVE", "BELT", "BENCH", "COPY", "DROP", "PATH", "PROGRESS", "PROJECT", "SOUTH", "STATUS", "STUFF", "TICKET", "TOUR", "ANGLE", "BREAKFAST", "DAUGHTER", "DEGREE", "DOCTOR", "DREAM", "DUTY", "ESSAY", "FATHER", "FINANCE", "HOUR", "JUICE", "LIMIT", "LUCK", "MILK", "MOUTH", "PEACE", "PIPE", "SEAT", "STABLE", "STORM", "SUBSTANCE", "TEAM", "TRICK", "AFTERNOON", "BEACH", "BLANK", "CATCH", "CHAIN", "CREAM", "CREW", "DETAIL", "GOLD", "INTERVIEW", "MARK", "MATCH", "MISSION", "PAIN", "PLEASURE", "SCORE", "SCREW", "SHOP", "SHOWER", "SUIT", "TONE", "WINDOW", "AGENT", "BAND", "BLOCK", "BONE", "CALENDAR", "COAT", "CONTEST", "CORNER", "COURT", "DISTRICT", "DOOR", "EAST", "FINGER", "GARAGE", "GUARANTEE", "HOLE", "HOOK", "IMPLEMENT", "LAYER", "LECTURE", "MANNER", "MEETING", "NOSE", "PARKING", "PARTNER", "PROFILE", "RESPECT", "RICE", "ROUTINE", "SCHEDULE", "SWIMMING", "TELEPHONE", "WINTER", "AIRLINE", "BATTLE", "BILL", "CAKE", "CODE", "CURVE", "DESIGNER", "DIMENSION", "DRESS", "EASE", "EMERGENCY", "EVENING", "EXTENSION", "FARM", "FIGHT", "GRADE", "HOLIDAY", "HORROR", "HORSE", "HOST", "HUSBAND", "LOAN", "MISTAKE", "MOUNTAIN", "NAIL", "NOISE", "OCCASION", "PACKAGE", "PATIENT", "PHRASE", "PROOF", "RACE", "RELIEF", "SAND", "SENTENCE", "SHOULDER", "SMOKE", "STOMACH", "STRING", "TOURIST", "TOWEL", "VACATION", "WEST", "WHEEL", "WINE", "ASSOCIATE", "BORDER", "BRANCH", "BREAST", "BROTHER", "BUDDY", "BUNCH", "CHIP", "COACH", "CROSS", "DOCUMENT", "DRAFT", "DUST", "EXPERT", "FLOOR", "GOLF", "HABIT", "IRON", "JUDGE", "KNIFE", "LANDSCAPE", "LEAGUE", "MAIL", "MESS", "NATIVE", "OPENING", "PARENT", "PATTERN", "POOL", "POUND", "REQUEST", "SALARY", "SHAME", "SHELTER", "SHOE", "SILVER", "TACKLE", "TANK", "TRUST", "BELL", "BIKE", "BRICK", "CHAIR", "CLOSET", "CLUE", "COLLAR", "COMMENT", "DEVIL", "DIET", "FEAR", "FUEL", "GLOVE", "JACKET", "LUNCH", "MONITOR", "MORTGAGE", "NURSE", "PACE", "PANIC", "PEAK", "PLANE", "REWARD", "SANDWICH", "SHOCK", "SPRAY", "WEEKEND", "YARD", "ALARM", "BICYCLE", "BITE", "BLIND", "BOTTLE", "CABLE", "CANDLE", "CLERK", "CLOUD", "CONCERT", "COUNTER", "FLOWER", "HARM", "KNEE", "LAWYER", "LEATHER", "LOAD", "MIRROR", "NECK", "PENSION", "PLATE", "PURPLE", "SHIP", "SKIRT", "SLICE", "SNOW", "STROKE", "SWITCH", "TRASH", "TUNE", "ZONE", "ANGER", "AWARD", "BITTER", "BOOT", "CAMP", "CANDY", "CARPET", "CHAMPION", "CHANNEL", "CLOCK", "COMFORT", "CRACK", "ENGINEER", "ENTRANCE", "FAULT", "GRASS", "HELL", "HIGHLIGHT", "INCIDENT", "ISLAND", "JOKE", "JURY", "MATE", "MOTOR", "NERVE", "PASSAGE", "PRIDE", "PRIEST", "PRIZE", "PROMISE", "RESIDENT", "RESORT", "RING", "ROOF", "ROPE", "SAIL", "SCHEME", "SCRIPT", "SOCK", "STATION", "TOWER", "TRUCK", "WITNESS", "GUARD", "WATCH", "SPRING", "PITCH", "SLIDE", "STRIP", "TRAIN", "ROLL", "MINE", "BEAR", "PUNCH"];
 
 let gameState = { code: '', teams: 2, grid: 5, cards: [], cardsLeft: {}, turn: 'red', guessesRemaining: 0, eliminated: [],
-                  chatLog: [], gameOver: false, winner: '', turnSeconds: 0, turnStartedAt: 0, myName: '', myTeam: 'red', myRole: 'guesser' };
+                  chatLog: [], gameOver: false, winner: '', turnSeconds: 0, turnStartedAt: 0, myName: '', myTeam: 'red', myRole: 'guesser', gameMode: 'normal' };
 let channel = null;
 
 // DOM
 const $ = (id) => document.getElementById(id);
 const lobbyScreen = $('lobby-screen'), gameScreen = $('game-screen'), boardEl = $('board');
 const scoreboardEl = $('scoreboard'), chatLogEl = $('chat-log'), toastEl = $('toast');
-const playerInfoBadge = $('player-info-badge'), activePlayersList = $('active-players-list');
-const createTeamsSelect = $('create-teams'), createTeamSelect = $('create-team');
+const playerInfoBadge = $('player-info-badge'), displayGameMode = $('display-game-mode'), activePlayersList = $('active-players-list');
+const createTeamsSelect = $('create-teams'), createTeamSelect = $('create-team'), createModeSelect = $('create-mode');
 const createBtn = $('create-btn'), joinBtn = $('join-btn'), joinIdInput = $('join-id');
 const endTurnBtn = $('end-turn-btn'), leaveBtn = $('leave-btn');
 const hintControls = $('hint-controls'), hintWordInput = $('hint-word'), hintNumberInput = $('hint-number'), submitHintBtn = $('submit-hint');
 const chatControls = $('chat-controls'), chatTextInput = $('chat-text'), submitChatBtn = $('submit-chat');
+const suspenseControls = $('suspense-controls'), suspenseCountEl = $('suspense-count');
+const submitGuessesBtn = $('submit-guesses-btn'), clearSelectionBtn = $('clear-selection-btn');
 const gameOverModal = $('game-over-modal'), winnerText = $('winner-text');
 const playAgainBtn = $('play-again-btn'), returnLobbyBtn = $('return-lobby-btn');
 const rulesModal = $('rules-modal'), closeRulesBtn = $('close-rules-btn'), srLive = $('sr-live');
 const connectError = $('connect-error'), connectRetry = $('connect-retry'), connectLeave = $('connect-leave');
 const themeToggleLobby = $('theme-toggle-lobby'), themeToggleGame = $('theme-toggle-game');
 const roleToggleBtn = $('role-toggle-btn'), teamSpymasterBanner = $('team-spymaster-banner');
+const selectedCards = new Set();
 
 // ── Theme management ──
 function getPreferredTheme() {
@@ -151,6 +154,7 @@ if (urlCode) joinIdInput.value = urlCode.toUpperCase().slice(0, 6);
 async function createGame() {
     const name = $('create-name').value.trim().slice(0, 20) || 'Anonymous';
     const teams = parseInt(createTeamsSelect.value, 10);
+    const gameMode = createModeSelect ? createModeSelect.value : 'normal';
     const team = createTeamSelect.value, role = 'guesser';
     const turnSeconds = parseInt($('create-timer').value, 10) || 0;
     const cards = generateBoard(teams);
@@ -165,6 +169,7 @@ async function createGame() {
         for (let attempt = 0; attempt < 2; attempt++) {
             ({ data, error } = await db.from('games').insert({
                 game_code: makeCode(), teams, grid: MODES[teams].grid, board_cards: cards, cards_left: cardsLeft, turn, turn_seconds: turnSeconds,
+                game_mode: gameMode,
                 chat_log: [{ type: 'system', text: `Game created. ${teamLabel(turn)} starts.` }]
             }).select().single());
             if (!error || error.code !== '23505') break;
@@ -292,6 +297,11 @@ async function enterGame(row, { name, team, role }) {
         swapScreens(true);
         boardEl.focus(); // the lobby just disappeared; keep keyboard/screen-reader users in the game
         $('display-game-id').textContent = row.game_code;
+        if (displayGameMode) {
+            const mode = row.game_mode || 'normal';
+            displayGameMode.textContent = mode.toUpperCase();
+            displayGameMode.className = `badge badge-mode ${mode}`;
+        }
         document.body.classList.toggle('spymaster', role === 'spymaster');
         hintControls.classList.toggle('hidden', role !== 'spymaster');
         chatControls.classList.toggle('hidden', role === 'spymaster');
@@ -345,6 +355,8 @@ async function leaveGame() {
     await dropChannel();
     clearSession();
     history.replaceState(null, '', location.pathname);
+    selectedCards.clear();
+    updateSuspenseControls();
     swapScreens(false);
     gameOverOpener = null;
     gameOverModal.classList.add('hidden');
@@ -376,10 +388,12 @@ function isStale(row) {
 function syncStateWithDB(row) {
     if (isStale(row)) return;
     seen = { sig: boardSig(row), rank: stateRank(row), at: stamp(row) || 0 };
+    const prevTurn = gameState.turn;
     Object.assign(gameState, {
         cards: row.board_cards,
         cardsLeft: row.cards_left || { red: row.red_left, blue: row.blue_left }, // old-row fallback
         turn: row.turn,
+        gameMode: row.game_mode || 'normal',
         guessesRemaining: row.guesses_remaining || 0,
         eliminated: row.eliminated || [],
         chatLog: Array.isArray(row.chat_log) ? row.chat_log : [],
@@ -390,8 +404,20 @@ function syncStateWithDB(row) {
         turnSeconds: row.turn_seconds || 0,
         turnStartedAt: row.turn_started_at ? new Date(row.turn_started_at).getTime() : Date.now()
     });
+    if (displayGameMode) {
+        displayGameMode.textContent = gameState.gameMode.toUpperCase();
+        displayGameMode.className = `badge badge-mode ${gameState.gameMode}`;
+    }
+    if (prevTurn !== gameState.turn || !canGuess()) {
+        selectedCards.clear();
+    } else {
+        for (const idx of selectedCards) {
+            if (gameState.cards[idx]?.revealed) selectedCards.delete(idx);
+        }
+    }
     renderBoard();
     updateUI();
+    updateSuspenseControls();
     renderChat();
     renderGameOver();
     tickTimer();
@@ -430,6 +456,7 @@ function renderBoard() {
     const active = document.activeElement;
     const at = active !== boardEl && boardEl.contains(active) ? [...boardEl.children].indexOf(active) : -1;
     const guessing = canGuess();
+    const isSuspense = gameState.gameMode === 'suspense';
     boardEl.style.setProperty('--cols', gameState.grid);
     boardEl.dataset.grid = gameState.grid;
     boardEl.replaceChildren(...gameState.cards.map((raw, i) => {
@@ -445,6 +472,12 @@ function renderBoard() {
         el.setAttribute('aria-label', (card.revealed || gameState.myRole === 'spymaster') && team
             ? `${word || 'blank card'}, ${team === 'black' ? 'assassin' : team}` : (word || 'blank card'));
         if (card.revealed) el.classList.add('revealed');
+        if (isSuspense && selectedCards.has(i)) {
+            el.classList.add('selected');
+            el.setAttribute('aria-pressed', 'true');
+        } else if (isSuspense) {
+            el.setAttribute('aria-pressed', 'false');
+        }
         el.disabled = card.revealed || !guessing;
         el.addEventListener('click', () => handleCardClick(i));
         return el;
@@ -480,6 +513,7 @@ function updateUI() {
     document.body.classList.toggle('can-guess', canGuess());
     endTurnBtn.disabled = !(myRole === 'guesser' && myTurn);
     hintWordInput.disabled = hintNumberInput.disabled = submitHintBtn.disabled = !(myRole === 'spymaster' && myTurn && n === 0);
+    updateSuspenseControls();
 }
 
 // Chat entries come from the database. Render what is well-formed and never throw on the rest, so one bad entry
@@ -669,7 +703,66 @@ function handleCardClick(i) {
     const g = gameState;
     if (g.gameOver || g.myRole !== 'guesser' || g.myTeam !== g.turn || g.guessesRemaining <= 0
         || g.cards[i]?.revealed || g.eliminated.includes(g.myTeam)) return;
+
+    if (g.gameMode === 'suspense') {
+        if (selectedCards.has(i)) {
+            selectedCards.delete(i);
+        } else {
+            if (selectedCards.size >= g.guessesRemaining) {
+                showToast(`You can select at most ${g.guessesRemaining} words`);
+                return;
+            }
+            selectedCards.add(i);
+        }
+        renderBoard();
+        updateSuspenseControls();
+        return;
+    }
+
     rpc('reveal_card', { p_code: g.code, p_team: g.myTeam, p_index: i });
+}
+
+function updateSuspenseControls() {
+    if (!suspenseControls) return;
+    const g = gameState;
+    const active = g.gameMode === 'suspense' && canGuess();
+    suspenseControls.classList.toggle('hidden', !active);
+    if (active) {
+        const count = selectedCards.size;
+        const max = g.guessesRemaining;
+        suspenseCountEl.textContent = `Selected: ${count} / ${max} ${max === 1 ? 'word' : 'words'}`;
+        submitGuessesBtn.disabled = count === 0;
+        clearSelectionBtn.disabled = count === 0;
+        submitGuessesBtn.textContent = count > 0 ? `Submit Guesses (${count})` : 'Submit Guesses';
+    }
+}
+
+async function submitSuspenseGuesses() {
+    const g = gameState;
+    if (!canGuess() || g.gameMode !== 'suspense') return;
+    if (selectedCards.size === 0) {
+        showToast('Select at least 1 word to submit');
+        return;
+    }
+    if (selectedCards.size > g.guessesRemaining) {
+        showToast(`You can select at most ${g.guessesRemaining} words`);
+        return;
+    }
+    submitGuessesBtn.disabled = true;
+    submitGuessesBtn.textContent = 'Submitting...';
+    try {
+        const indices = Array.from(selectedCards);
+        const res = await rpc('reveal_cards_batch', {
+            p_code: g.code,
+            p_team: g.myTeam,
+            p_indices: indices
+        });
+        if (res) {
+            selectedCards.clear();
+        }
+    } finally {
+        updateSuspenseControls();
+    }
 }
 
 async function submitHint() {
@@ -678,7 +771,7 @@ async function submitHint() {
     if (g.gameOver || g.myRole !== 'spymaster') return;
     if (g.myTeam !== g.turn) return showToast("It's not your team's turn");
     if (g.guessesRemaining > 0) return showToast('Your team still has guesses');
-    if (!HINT_RE.test(word)) return showToast('Hint must be one word, letters only, max 20 characters');
+    if (!HINT_RE.test(word)) return showToast('Hint must be one word, letters only, max 15 characters');
     if (!(n >= 1 && n <= (g.cardsLeft[g.myTeam] ?? 0))) return showToast(`Number must be between 1 and ${g.cardsLeft[g.myTeam] ?? 0}`);
     if (g.cards.some((c) => isEntry(c) && typeof c.word === 'string' && c.word.toUpperCase() === word.toUpperCase())) return showToast('Hint cannot be a word on the board');
     if (await rpc('give_hint', { p_code: g.code, p_team: g.myTeam, p_word: word, p_n: n })) {
@@ -696,6 +789,8 @@ async function submitChat() {
 function endTurn() {
     const g = gameState;
     if (g.myRole !== 'guesser' || g.myTeam !== g.turn || g.gameOver) return;
+    selectedCards.clear();
+    updateSuspenseControls();
     rpc('end_turn', { p_code: g.code, p_team: g.myTeam });
 }
 
@@ -726,6 +821,12 @@ joinBtn.addEventListener('click', async () => {
 if (themeToggleLobby) themeToggleLobby.addEventListener('click', toggleTheme);
 if (themeToggleGame) themeToggleGame.addEventListener('click', toggleTheme);
 if (roleToggleBtn) roleToggleBtn.addEventListener('click', handleRoleToggleClick);
+if (submitGuessesBtn) submitGuessesBtn.addEventListener('click', submitSuspenseGuesses);
+if (clearSelectionBtn) clearSelectionBtn.addEventListener('click', () => {
+    selectedCards.clear();
+    renderBoard();
+    updateSuspenseControls();
+});
 endTurnBtn.addEventListener('click', endTurn);
 submitHintBtn.addEventListener('click', submitHint);
 submitChatBtn.addEventListener('click', submitChat);

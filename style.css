@@ -289,6 +289,15 @@ body {
     background: var(--surface-2); border: 1px solid var(--border);
     font-family: 'Courier New', monospace; font-size: .9rem; letter-spacing: 2px;
 }
+.badge-mode {
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: .75rem; letter-spacing: .5px;
+}
+.badge-mode.suspense {
+    border-color: #f59e0b;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+}
 .badge-role { background: var(--accent); color: #fff; text-transform: uppercase; letter-spacing: .5px; }
 
 /* ── Scoreboard ──────────────────────────────── */
@@ -318,8 +327,9 @@ body {
 .board-area {
     flex: 1;
     min-width: 0; /* allow flex item to shrink below content size */
-    display: flex; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 24px;
+    gap: 16px;
     overflow: auto;
 }
 
@@ -363,6 +373,59 @@ body.can-guess .card:not(.revealed):hover {
     transform: translateY(-3px);
     border-color: var(--accent);
     box-shadow: 0 6px 20px rgba(167,139,250,.2);
+}
+
+/* Suspense Mode Card Selection */
+.card.selected {
+    border: 2px solid #f59e0b !important;
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: var(--text);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.45);
+    transform: translateY(-2px);
+}
+[data-theme="light"] .card.selected {
+    background: #fef3c7 !important;
+    border-color: #d97706 !important;
+    color: #92400e;
+}
+.card.selected::before {
+    content: '✓ ';
+    font-weight: 800;
+    color: #f59e0b;
+    margin-right: 4px;
+}
+[data-theme="light"] .card.selected::before {
+    color: #d97706;
+}
+
+/* Suspense bar */
+.suspense-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    transition: opacity .2s, transform .2s;
+}
+.suspense-bar.hidden { display: none !important; }
+.suspense-count {
+    font-size: .88rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+/* Card reveal animation */
+@keyframes cardReveal {
+    0% { transform: scale(0.92); opacity: 0.8; }
+    50% { transform: scale(1.04); }
+    100% { transform: scale(1); opacity: 1; }
+}
+.card.revealing {
+    animation: cardReveal .4s ease forwards;
 }
 
 /* Revealed cards */
