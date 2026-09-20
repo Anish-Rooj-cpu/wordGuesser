@@ -1,0 +1,4 @@
+tests/
+sql/
+.claude/
+*.md
