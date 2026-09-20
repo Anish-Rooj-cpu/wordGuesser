@@ -34,6 +34,33 @@
     --shadow:    0 4px 24px rgba(0,0,0,.35);
 }
 
+[data-theme="light"] {
+    --bg:        #f8fafc;
+    --surface:   #ffffff;
+    --surface-2: #f1f5f9;
+    --border:    #cbd5e1;
+    --text:      #0f172a;
+    --text-dim:  #64748b;
+    --red:       #dc2626;
+    --red-soft:  #fee2e2;
+    --red-glow:  rgba(220,38,38,.2);
+    --blue:      #2563eb;
+    --blue-soft: #dbeafe;
+    --blue-glow: rgba(37,99,235,.2);
+    --black-card:#1e293b;
+    --accent:    #7c3aed;
+    --green:     #16a34a;
+    --green-soft:#dcfce7;
+    --green-glow:rgba(22,163,74,.2);
+    --cyan:      #0891b2;
+    --cyan-soft: #cffafe;
+    --cyan-glow: rgba(8,145,178,.2);
+    --neutral:   #ca8a04;
+    --neutral-soft:#fef9c3;
+    --neutral-text:#713f12;
+    --shadow:    0 4px 24px rgba(15,23,42,.1);
+}
+
 html { font-size: 93.75%; }
 
 body {
@@ -42,6 +69,7 @@ body {
     color: var(--text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    transition: background-color .2s ease, color .2s ease;
 }
 
 /* ── Utility ────────────────────────────────── */
@@ -106,6 +134,51 @@ body {
 .btn-send:hover { background: #16a34a; }
 
 .btn-small { padding: 4px 10px; font-size: .8rem; }
+
+.theme-toggle-btn {
+    gap: 6px;
+    font-size: .8rem;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .2s, border-color .2s, transform .15s;
+}
+
+#role-toggle-btn {
+    transition: background .2s, border-color .2s, color .2s, transform .15s;
+}
+#role-toggle-btn.is-spymaster {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
+.lobby-topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.team-spymaster-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 10px 0 6px 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: .8rem;
+    color: var(--text-dim);
+}
+.team-spymaster-banner strong {
+    color: var(--text);
+}
+.team-spymaster-banner[data-team] {
+    border-left: 3px solid var(--tc);
+}
 
 .lobby-footer { text-align: center; margin-top: 30px; }
 
@@ -311,6 +384,13 @@ body.can-guess .card:not(.revealed):hover {
 body.spymaster .card:not(.revealed)[data-team] { border-color: var(--tc); background: var(--tc-soft); color: var(--tc); }
 body.spymaster .card:not(.revealed)[data-team="neutral"] { border-color: var(--neutral); background: var(--neutral-soft); color: var(--neutral); }
 body.spymaster .card:not(.revealed)[data-team="black"]   { border-color: #555; background: #1a1a2a; color: #888; }
+[data-theme="light"] body.spymaster .card:not(.revealed)[data-team="black"] { border-color: #475569; background: #e2e8f0; color: #1e293b; font-weight: 800; }
+[data-theme="light"] .card.revealed[data-team="black"] { background: #1e293b; color: #f8fafc; }
+[data-theme="light"] .overlay { background: rgba(15, 23, 42, 0.45); }
+[data-theme="light"] .lobby-panel,
+[data-theme="light"] .topbar,
+[data-theme="light"] .chat-panel,
+[data-theme="light"] .modal-card { box-shadow: var(--shadow); }
 
 @keyframes reveal { from { transform: scale(.92); } to { transform: scale(1); } }
 .card.revealed { animation: reveal .25s ease; }

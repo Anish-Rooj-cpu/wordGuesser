@@ -17,6 +17,9 @@
     <!-- ════════════════ LOBBY ════════════════ -->
     <div id="lobby-screen">
         <div class="lobby-wrapper" role="main">
+            <div class="lobby-topbar">
+                <button id="theme-toggle-lobby" class="btn btn-secondary btn-small theme-toggle-btn" aria-label="Toggle light or dark theme" title="Toggle theme">🌙 Dark</button>
+            </div>
             <div class="lobby-brand">
                 <div class="lobby-logo" aria-hidden="true">🕵️</div>
                 <h1>Codenames</h1>
@@ -49,13 +52,6 @@
                             <option value="blue">🔵  Blue</option>
                             <option value="green">🟢  Green</option>
                             <option value="cyan">🩵  Cyan</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label for="create-role">Role</label>
-                        <select id="create-role">
-                            <option value="spymaster">🕵️  Spymaster</option>
-                            <option value="guesser">🎯  Guesser</option>
                         </select>
                     </div>
                     <div class="field">
@@ -100,13 +96,6 @@
                             <option value="cyan">🩵  Cyan</option>
                         </select>
                     </div>
-                    <div class="field">
-                        <label for="join-role">Role</label>
-                        <select id="join-role">
-                            <option value="guesser">🎯  Guesser</option>
-                            <option value="spymaster">🕵️  Spymaster</option>
-                        </select>
-                    </div>
                     <button id="join-btn" class="btn btn-secondary">Join Game</button>
                 </div>
             </div>
@@ -125,10 +114,12 @@
                 <h1 class="topbar-brand">🕵️ Codenames</h1>
                 <span class="badge badge-code" id="display-game-id"></span>
                 <span class="badge badge-role" id="player-info-badge"></span>
+                <button id="role-toggle-btn" class="btn btn-secondary btn-small">🕵️ Become Spymaster</button>
                 <button id="rules-btn-game" class="btn btn-secondary btn-small">📖 Rules</button>
                 <button id="leave-btn" class="btn btn-secondary btn-small">Leave</button>
             </div>
             <div class="topbar-right">
+                <button id="theme-toggle-game" class="btn btn-secondary btn-small theme-toggle-btn" aria-label="Toggle light or dark theme" title="Toggle theme">🌙 Dark</button>
                 <div class="scoreboard" id="scoreboard" role="group" aria-label="Scoreboard"></div>
                 <button id="end-turn-btn" class="btn btn-end-turn">End Turn</button>
             </div>
@@ -150,6 +141,7 @@
             <aside class="chat-panel" aria-label="Players and chat">
                 <div class="players-section">
                     <h2 class="chat-title">👥 Active Players</h2>
+                    <div id="team-spymaster-banner" class="team-spymaster-banner"></div>
                     <ul id="active-players-list" class="players-list" aria-label="Active players">
                         <!-- Populated dynamically -->
                     </ul>

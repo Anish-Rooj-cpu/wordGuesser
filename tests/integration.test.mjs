@@ -94,7 +94,7 @@ function mkPlayer(label, { url = 'http://localhost/', session } = {}) {
         label, w, doc: w.document,
         ev: run,
         get st() { return run('gameState'); },
-        val: (id, v) => { p.doc.getElementById(id).value = v; },
+        val: (id, v) => { const el = p.doc.getElementById(id); if (el) el.value = v; },
         click: (id) => p.doc.getElementById(id).click(),
         card: (i) => p.doc.querySelectorAll('.card')[i],
         toast: () => p.doc.getElementById('toast').textContent,
@@ -108,14 +108,22 @@ async function create(label, teams, team, role) {
     const p = mkPlayer(label);
     p.val('create-name', label); p.val('create-teams', String(teams));
     p.doc.getElementById('create-teams').dispatchEvent(new p.w.Event('change'));
-    p.val('create-team', team); p.val('create-role', role);
+    p.val('create-team', team);
+    if (p.doc.getElementById('create-role')) p.val('create-role', role);
     p.click('create-btn'); await sleep(150);
+    if (role === 'spymaster' && p.doc.getElementById('role-toggle-btn') && p.st.myRole !== 'spymaster') {
+        p.click('role-toggle-btn'); await sleep(80);
+    }
     return p;
 }
 async function join(label, code, team, role) {
     const p = mkPlayer(label);
-    p.val('join-name', label); p.val('join-id', code); p.val('join-team', team); p.val('join-role', role);
+    p.val('join-name', label); p.val('join-id', code); p.val('join-team', team);
+    if (p.doc.getElementById('join-role')) p.val('join-role', role);
     p.click('join-btn'); await sleep(150);
+    if (role === 'spymaster' && p.doc.getElementById('role-toggle-btn') && p.st.myRole !== 'spymaster') {
+        p.click('role-toggle-btn'); await sleep(80);
+    }
     return p;
 }
 
@@ -834,6 +842,74 @@ console.log('\n== Cleanup: empty chat entries + cards without a word ==');
     await pg.query("update games set turn_started_at = turn_started_at - interval '20 seconds' where game_code = 'TIMER1'");
     r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
     check('timer: a hint restarts the clock', r.data.turn === 'blue' && r.data.guesses_remaining === 1);
+}
+
+// ═════════ Theme toggle & in-room role selection ═════════
+{
+    console.log('\n[theme toggle & in-room role selection]');
+    const p1 = mkPlayer('theme-tester');
+    check('theme: default data-theme is set', ['dark', 'light'].includes(p1.doc.documentElement.dataset.theme));
+    const btn = p1.doc.getElementById('theme-toggle-lobby');
+    check('theme: lobby toggle button present', !!btn);
+    const initialTheme = p1.doc.documentElement.dataset.theme;
+    btn.click();
+    const toggledTheme = p1.doc.documentElement.dataset.theme;
+    check('theme: clicking toggle changes theme', toggledTheme !== initialTheme);
+    check('theme: persisted in localStorage', p1.w.localStorage.getItem('codenames-theme') === toggledTheme);
+    btn.click();
+    check('theme: toggling back restores initial theme', p1.doc.documentElement.dataset.theme === initialTheme);
+
+    // Lobby has NO role select fields
+    check('role: create-role select not in lobby', p1.doc.getElementById('create-role') === null);
+    check('role: join-role select not in lobby', p1.doc.getElementById('join-role') === null);
+
+    // Create game without role selection -> enters as guesser
+    p1.val('create-name', 'Alice');
+    p1.val('create-teams', '2');
+    p1.doc.getElementById('create-teams').dispatchEvent(new p1.w.Event('change'));
+    p1.val('create-team', 'red');
+    p1.click('create-btn');
+    await sleep(150);
+
+    check('role: player enters room as guesser by default', p1.st.myRole === 'guesser');
+    check('role: role toggle button present in room', !!p1.doc.getElementById('role-toggle-btn'));
+    check('role: button offers Become Spymaster', p1.txt('role-toggle-btn').includes('Become Spymaster'));
+
+    // First player from team red chooses Spymaster
+    p1.click('role-toggle-btn');
+    await sleep(80);
+    check('role: first player becomes spymaster', p1.st.myRole === 'spymaster');
+    check('role: button now offers Switch to Guesser', p1.txt('role-toggle-btn').includes('Switch to Guesser'));
+    check('role: body has spymaster class', p1.doc.body.classList.contains('spymaster'));
+
+    // Second player joins team red
+    const p2 = mkPlayer('Bob');
+    p2.val('join-name', 'Bob');
+    p2.val('join-id', p1.st.code);
+    p2.val('join-team', 'red');
+    p2.click('join-btn');
+    await sleep(150);
+
+    check('role: second player enters as guesser', p2.st.myRole === 'guesser');
+    check('role: second player sees Spymaster is taken', p2.doc.getElementById('role-toggle-btn').disabled === true);
+    check('role: second player button text shows Spymaster Alice', p2.txt('role-toggle-btn').includes('Alice'));
+
+    // Second player tries to claim Spymaster -> blocked
+    await p2.ev("claimRole('spymaster')");
+    await sleep(80);
+    check('role: second player blocked from becoming spymaster', p2.st.myRole === 'guesser');
+    check('role: second player sees toast warning', p2.toast().includes('already has a Spymaster'));
+
+    // First player steps down to guesser
+    p1.click('role-toggle-btn');
+    await sleep(80);
+    check('role: first player stepped down to guesser', p1.st.myRole === 'guesser');
+    check('role: second player button now enabled to claim Spymaster', p2.doc.getElementById('role-toggle-btn').disabled === false);
+
+    // Second player now claims Spymaster
+    p2.click('role-toggle-btn');
+    await sleep(80);
+    check('role: second player successfully claims vacant spymaster slot', p2.st.myRole === 'spymaster');
 }
 
 // ═════════ error log ═════════

@@ -25,6 +25,41 @@ const gameOverModal = $('game-over-modal'), winnerText = $('winner-text');
 const playAgainBtn = $('play-again-btn'), returnLobbyBtn = $('return-lobby-btn');
 const rulesModal = $('rules-modal'), closeRulesBtn = $('close-rules-btn'), srLive = $('sr-live');
 const connectError = $('connect-error'), connectRetry = $('connect-retry'), connectLeave = $('connect-leave');
+const themeToggleLobby = $('theme-toggle-lobby'), themeToggleGame = $('theme-toggle-game');
+const roleToggleBtn = $('role-toggle-btn'), teamSpymasterBanner = $('team-spymaster-banner');
+
+// ── Theme management ──
+function getPreferredTheme() {
+    try {
+        const saved = localStorage.getItem('codenames-theme');
+        if (saved === 'light' || saved === 'dark') return saved;
+    } catch (e) { /* storage unavailable */ }
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.setAttribute('content', theme === 'light' ? '#f8fafc' : '#0f1117');
+    const isLight = theme === 'light';
+    const text = isLight ? '☀️ Light' : '🌙 Dark';
+    const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+    [themeToggleLobby, themeToggleGame].forEach((btn) => {
+        if (btn) {
+            btn.textContent = text;
+            btn.setAttribute('aria-label', label);
+            btn.title = label;
+        }
+    });
+}
+
+function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('codenames-theme', next); } catch (e) { /* storage unavailable */ }
+    applyTheme(next);
+    announce(`Theme switched to ${next} mode`);
+}
+applyTheme(getPreferredTheme());
 
 // ── Helpers (TEAMS, MODES, HINT_RE, shuffle, generateBoard live in game-core.js) ──
 function makeCode() {
@@ -116,7 +151,7 @@ if (urlCode) joinIdInput.value = urlCode.toUpperCase().slice(0, 6);
 async function createGame() {
     const name = $('create-name').value.trim().slice(0, 20) || 'Anonymous';
     const teams = parseInt(createTeamsSelect.value, 10);
-    const team = createTeamSelect.value, role = $('create-role').value;
+    const team = createTeamSelect.value, role = 'guesser';
     const turnSeconds = parseInt($('create-timer').value, 10) || 0;
     const cards = generateBoard(teams);
     const cardsLeft = {};
@@ -143,6 +178,7 @@ async function createGame() {
 }
 
 async function joinGame({ code, name, team, role }) {
+    role = role || 'guesser';
     code = (code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(code)) { showToast('Enter a 6-character code'); return; }
     const { data, error } = await db.from('games').select('*').eq('game_code', code).maybeSingle();
@@ -248,6 +284,7 @@ async function enterGame(row, { name, team, role }) {
     announcedLog = null;
     seen = null;
     try {
+        role = role || 'guesser';
         Object.assign(gameState, { code: row.game_code, myName: name || 'Anonymous', myTeam: team, myRole: role });
         saveSession();
         history.replaceState(null, '', '?code=' + row.game_code);
@@ -289,6 +326,7 @@ async function enterGame(row, { name, team, role }) {
             }
         });
 
+        updateRoleControls();
         roomToken++;
         setReconnectMsg('');
         boardEl.replaceChildren(); // nothing from a previously joined room may show while connecting or after a failure
@@ -315,6 +353,7 @@ async function leaveGame() {
     announcedLog = null;
     seen = null;
     showConnectError(false);
+    updateRoleControls();
     $('create-name').focus();
 }
 
@@ -492,6 +531,108 @@ function renderChat() {
     chatLogEl.scrollTop = chatLogEl.scrollHeight;
 }
 
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function getCurrentSpymaster(team) {
+    if (!channel) return null;
+    try {
+        const state = channel.presenceState();
+        if (!state) return null;
+        const players = Object.values(state).flat();
+        return players.find((p) => p && p.team === team && p.role === 'spymaster') || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function updateRoleControls() {
+    if (!roleToggleBtn) return;
+    const myTeam = gameState.myTeam, myRole = gameState.myRole;
+    if (!gameState.code) {
+        roleToggleBtn.textContent = '🕵️ Become Spymaster';
+        roleToggleBtn.disabled = false;
+        roleToggleBtn.classList.remove('is-spymaster');
+        if (teamSpymasterBanner) teamSpymasterBanner.replaceChildren();
+        return;
+    }
+
+    const currentSpy = getCurrentSpymaster(myTeam);
+
+    if (myRole === 'spymaster') {
+        roleToggleBtn.textContent = '🎯 Switch to Guesser';
+        roleToggleBtn.disabled = false;
+        roleToggleBtn.classList.add('is-spymaster');
+        roleToggleBtn.title = 'Step down as Spymaster and become a Guesser';
+    } else {
+        roleToggleBtn.classList.remove('is-spymaster');
+        if (currentSpy && currentSpy.name !== gameState.myName) {
+            roleToggleBtn.textContent = `🕵️ Spymaster: ${currentSpy.name || 'Anonymous'}`;
+            roleToggleBtn.disabled = true;
+            roleToggleBtn.title = `${currentSpy.name || 'Anonymous'} is already the Spymaster for ${teamLabel(myTeam)}`;
+        } else {
+            roleToggleBtn.textContent = '🕵️ Become Spymaster';
+            roleToggleBtn.disabled = false;
+            roleToggleBtn.title = `Claim Spymaster role for ${teamLabel(myTeam)}`;
+        }
+    }
+
+    if (teamSpymasterBanner) {
+        teamSpymasterBanner.dataset.team = myTeam;
+        if (currentSpy) {
+            const isMe = currentSpy.name === gameState.myName && myRole === 'spymaster';
+            teamSpymasterBanner.innerHTML = `<span><strong>${teamLabel(myTeam)} Spymaster:</strong> ${escapeHtml(currentSpy.name || 'Anonymous')} ${isMe ? '(You)' : ''}</span>`;
+        } else {
+            teamSpymasterBanner.innerHTML = `<span><strong>${teamLabel(myTeam)} Spymaster:</strong> <em>Vacant (first to choose claims it)</em></span>`;
+        }
+    }
+}
+
+async function claimRole(newRole) {
+    if (newRole === gameState.myRole) return false;
+    if (newRole === 'spymaster') {
+        const existing = getCurrentSpymaster(gameState.myTeam);
+        if (existing && existing.name !== gameState.myName) {
+            showToast(`Team ${teamLabel(gameState.myTeam)} already has a Spymaster (${existing.name || 'Anonymous'}).`);
+            updateRoleControls();
+            return false;
+        }
+        setRole('spymaster');
+        showToast(`You are now Spymaster for ${teamLabel(gameState.myTeam)}!`, 'info');
+        return true;
+    } else {
+        setRole('guesser');
+        showToast(`You are now a Guesser for ${teamLabel(gameState.myTeam)}.`, 'info');
+        return true;
+    }
+}
+
+function setRole(role) {
+    gameState.myRole = role;
+    saveSession();
+    document.body.classList.toggle('spymaster', role === 'spymaster');
+    hintControls.classList.toggle('hidden', role !== 'spymaster');
+    chatControls.classList.toggle('hidden', role === 'spymaster');
+    if (channel) {
+        channel.track({ name: gameState.myName, team: gameState.myTeam, role: gameState.myRole });
+    }
+    renderBoard();
+    updateUI();
+    updateRoleControls();
+    announce(`Role changed to ${role}`);
+}
+
+function handleRoleToggleClick() {
+    if (gameState.myRole === 'spymaster') {
+        claimRole('guesser');
+    } else {
+        claimRole('spymaster');
+    }
+}
+
 function renderRoster() {
     if (!channel) return;
     const players = Object.values(channel.presenceState()).flat();
@@ -507,6 +648,7 @@ function renderRoster() {
         li.append((p.role === 'spymaster' ? '🕵️' : '🎯') + ' ', name, info);
         return li;
     }));
+    updateRoleControls();
 }
 
 function renderGameOver() {
@@ -575,12 +717,15 @@ joinBtn.addEventListener('click', async () => {
     joinBtn.textContent = 'Joining...';
     try {
         await joinGame({ code: joinIdInput.value, name: $('join-name').value.trim().slice(0, 20) || 'Anonymous',
-                         team: $('join-team').value, role: $('join-role').value });
+                         team: $('join-team').value, role: 'guesser' });
     } finally {
         joinBtn.disabled = false;
         joinBtn.textContent = 'Join Game';
     }
 });
+if (themeToggleLobby) themeToggleLobby.addEventListener('click', toggleTheme);
+if (themeToggleGame) themeToggleGame.addEventListener('click', toggleTheme);
+if (roleToggleBtn) roleToggleBtn.addEventListener('click', handleRoleToggleClick);
 endTurnBtn.addEventListener('click', endTurn);
 submitHintBtn.addEventListener('click', submitHint);
 submitChatBtn.addEventListener('click', submitChat);
