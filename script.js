@@ -167,11 +167,17 @@ async function createGame() {
     try {
         let data = null, error = null;
         for (let attempt = 0; attempt < 2; attempt++) {
-            ({ data, error } = await db.from('games').insert({
+            const payload = {
                 game_code: makeCode(), teams, grid: MODES[teams].grid, board_cards: cards, cards_left: cardsLeft, turn, turn_seconds: turnSeconds,
                 game_mode: gameMode,
                 chat_log: [{ type: 'system', text: `Game created. ${teamLabel(turn)} starts.` }]
-            }).select().single());
+            };
+            ({ data, error } = await db.from('games').insert(payload).select().single());
+            if (error && (error.code === 'PGRST204' || /game_mode/.test(error.message))) {
+                delete payload.game_mode;
+                ({ data, error } = await db.from('games').insert(payload).select().single());
+                if (data && !data.game_mode) data.game_mode = gameMode;
+            }
             if (!error || error.code !== '23505') break;
         }
         if (error) { showToast(error.message); return; }
