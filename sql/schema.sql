@@ -15,6 +15,8 @@ create table games (
   game_over         boolean not null default false,
   winner            text not null default '',       -- team id or ''
   game_mode         text not null default 'normal' check (game_mode in ('normal', 'suspense')),
+  host_name         text not null default '',
+  timer_started     boolean not null default false,
   turn_seconds      int  not null default 0 check (turn_seconds between 0 and 600), -- 0 = untimed
   turn_started_at   timestamptz not null default now(), -- clock restarts on each new turn and on each hint
   created_at        timestamptz not null default now(),
@@ -269,7 +271,7 @@ declare g games; nt text;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
-  if g.game_over or g.turn_seconds = 0 or now() < g.turn_started_at + make_interval(secs => g.turn_seconds) then
+  if not g.timer_started or g.game_over or g.turn_seconds = 0 or now() < g.turn_started_at + make_interval(secs => g.turn_seconds) then
     return g; -- nothing to do; callers just get the current row
   end if;
   nt := next_team(g.turn, g.teams, g.eliminated);
@@ -318,7 +320,26 @@ begin
   update games set
     board_cards = p_cards, cards_left = left_, turn = start_team, guesses_remaining = 0, eliminated = '{}',
     chat_log = jsonb_build_array(jsonb_build_object('type','system','text','Game restarted! ' || upper(start_team) || ' starts.')),
-    game_over = false, winner = '', updated_at = now(), turn_started_at = now()
+    game_over = false, winner = '', updated_at = now(), turn_started_at = now(),
+    timer_started = false
+  where game_code = p_code
+  returning * into g;
+  return g;
+end $$;
+
+-- ---------- start_timer ----------
+create or replace function start_timer(p_code text)
+returns games language plpgsql security definer set search_path = public as $$
+declare g games;
+begin
+  select * into g from games where game_code = p_code for update;
+  if not found then raise exception 'Game not found'; end if;
+  if g.game_over then raise exception 'Game is over'; end if;
+  update games set
+    timer_started = true,
+    turn_started_at = now(),
+    chat_log = chat_log || jsonb_build_object('type','system','text','Timer started!'),
+    updated_at = now()
   where game_code = p_code
   returning * into g;
   return g;
@@ -329,4 +350,4 @@ revoke all on table games from anon;
 grant select, insert on table games to anon;
 grant execute on function next_team(text,int,text[]), remaining_teams(int,text[]), derive_cards_left(jsonb),
   reveal_card(text,text,int), reveal_cards_batch(text,text,int[]), give_hint(text,text,text,int), end_turn(text,text), timeout_turn(text),
-  send_chat(text,text,text,text), restart_game(text,jsonb) to anon;
+  send_chat(text,text,text,text), restart_game(text,jsonb), start_timer(text) to anon;

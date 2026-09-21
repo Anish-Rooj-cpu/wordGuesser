@@ -8,7 +8,8 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const words = ["PEOPLE", "HISTORY", "WORLD", "FAMILY", "HEALTH", "SYSTEM", "COMPUTER", "MEAT", "YEAR", "MUSIC", "PERSON", "READING", "METHOD", "DATA", "FOOD", "THEORY", "BIRD", "PROBLEM", "SOFTWARE", "CONTROL", "KNOWLEDGE", "POWER", "ABILITY", "ECONOMICS", "LOVE", "INTERNET", "SCIENCE", "LIBRARY", "NATURE", "FACT", "PRODUCT", "IDEA", "AREA", "SOCIETY", "ACTIVITY", "STORY", "INDUSTRY", "MEDIA", "THING", "OVEN", "COMMUNITY", "SAFETY", "QUALITY", "LANGUAGE", "PLAYER", "VARIETY", "VIDEO", "WEEK", "SECURITY", "COUNTRY", "EXAM", "MOVIE", "EQUIPMENT", "PHYSICS", "ANALYSIS", "POLICY", "SERIES", "THOUGHT", "BASIS", "BOYFRIEND", "DIRECTION", "STRATEGY", "ARMY", "CAMERA", "FREEDOM", "PAPER", "CHILD", "INSTANCE", "MONTH", "TRUTH", "MARKETING", "WRITING", "ARTICLE", "GOAL", "NEWS", "AUDIENCE", "FISHING", "GROWTH", "INCOME", "MARRIAGE", "USER", "FAILURE", "MEANING", "MEDICINE", "TEACHER", "NIGHT", "CHEMISTRY", "DISEASE", "DISK", "ENERGY", "NATION", "ROAD", "ROLE", "SOUP", "LOCATION", "SUCCESS", "ADDITION", "APARTMENT", "EDUCATION", "MATH", "MOMENT", "PAINTING", "POLITICS", "ATTENTION", "DECISION", "EVENT", "PROPERTY", "SHOPPING", "STUDENT", "WOOD", "OFFICE", "PRESIDENT", "UNIT", "CATEGORY", "CIGARETTE", "CONTEXT", "DRIVER", "FLIGHT", "LENGTH", "MAGAZINE", "NEWSPAPER", "TEACHING", "CELL", "DEALER", "FINDING", "LAKE", "MEMBER", "MESSAGE", "PHONE", "SCENE", "CONCEPT", "CUSTOMER", "DEATH", "HOUSING", "INFLATION", "INSURANCE", "MOOD", "WOMAN", "ADVICE", "BLOOD", "EFFORT", "OPINION", "PAYMENT", "REALITY", "SITUATION", "SKILL", "STATEMENT", "WEALTH", "CITY", "COUNTY", "DEPTH", "ESTATE", "HEART", "PHOTO", "RECIPE", "STUDIO", "TOPIC", "PASSION", "RESOURCE", "SETTING", "AGENCY", "COLLEGE", "CRITICISM", "DEBT", "MEMORY", "PATIENCE", "SECRETARY", "SOLUTION", "ASPECT", "ATTITUDE", "DIRECTOR", "RESPONSE", "SELECTION", "STORAGE", "VERSION", "ALCOHOL", "ARGUMENT", "COMPLAINT", "CONTRACT", "EMPHASIS", "HIGHWAY", "LOSS", "STEAK", "UNION", "AGREEMENT", "CANCER", "CURRENCY", "ENTRY", "MIXTURE", "REGION", "REPUBLIC", "TRADITION", "VIRUS", "ACTOR", "CLASSROOM", "DELIVERY", "DEVICE", "DRAMA", "ELECTION", "ENGINE", "FOOTBALL", "GUIDANCE", "HOTEL", "OWNER", "PRIORITY", "TENSION", "VARIATION", "ANXIETY", "AWARENESS", "BATH", "BREAD", "CANDIDATE", "CLIMATE", "CONFUSION", "ELEVATOR", "EMOTION", "EMPLOYEE", "EMPLOYER", "GUEST", "HEIGHT", "MALL", "MANAGER", "OPERATION", "RECORDING", "SAMPLE", "CHARITY", "COUSIN", "DISASTER", "EDITOR", "EXTENT", "FEEDBACK", "GUITAR", "HOMEWORK", "LEADER", "OUTCOME", "PROMOTION", "REVENUE", "SESSION", "SINGER", "TENNIS", "BASKET", "BONUS", "CABINET", "CHILDHOOD", "CHURCH", "CLOTHES", "COFFEE", "DINNER", "DRAWING", "HAIR", "HEARING", "JUDGMENT", "MODE", "ORANGE", "POETRY", "POLICE", "PROCEDURE", "QUEEN", "RATIO", "RELATION", "SECTOR", "SIGNATURE", "SONG", "TOOTH", "TOWN", "VEHICLE", "VOLUME", "WIFE", "ACCIDENT", "AIRPORT", "ARRIVAL", "BASEBALL", "CHAPTER", "COMMITTEE", "DATABASE", "ERROR", "FARMER", "GATE", "GIRL", "HALL", "HISTORIAN", "HOSPITAL", "INJURY", "MEAL", "POEM", "PRESENCE", "PROPOSAL", "RECEPTION", "RIVER", "SPEECH", "VILLAGE", "WARNING", "WINNER", "WORKER", "WRITER", "BREATH", "BUYER", "CHEST", "CHOCOLATE", "COOKIE", "COURAGE", "DESK", "DRAWER", "GARBAGE", "GROCERY", "HONEY", "INSECT", "INSPECTOR", "KING", "LADDER", "MENU", "PENALTY", "PIANO", "POTATO", "PROFESSOR", "QUANTITY", "REACTION", "SALAD", "SISTER", "TONGUE", "WEAKNESS", "WEDDING", "AFFAIR", "AMBITION", "ANALYST", "APPLE", "ASSISTANT", "BATHROOM", "BEDROOM", "BEER", "BIRTHDAY", "CHEEK", "CLIENT", "DEPARTURE", "DIAMOND", "DIRT", "FORTUNE", "FUNERAL", "GENE", "INTENTION", "LADY", "MIDNIGHT", "PASSENGER", "PIZZA", "PLATFORM", "POET", "POLLUTION", "SHIRT", "SPEAKER", "STRANGER", "SURGERY", "SYMPATHY", "TALE", "THROAT", "TRAINER", "UNCLE", "YOUTH", "TIME", "WORK", "FILM", "WATER", "MONEY", "EXAMPLE", "BUSINESS", "STUDY", "GAME", "LIFE", "FORM", "PLACE", "NUMBER", "PART", "FIELD", "FISH", "BACK", "PROCESS", "HEAT", "HAND", "BOOK", "POINT", "TYPE", "HOME", "ECONOMY", "VALUE", "BODY", "MARKET", "GUIDE", "INTEREST", "STATE", "RADIO", "COURSE", "COMPANY", "PRICE", "SIZE", "CARD", "LIST", "MIND", "TRADE", "LINE", "CARE", "GROUP", "RISK", "WORD", "FORCE", "LIGHT", "TRAINING", "NAME", "SCHOOL", "AMOUNT", "LEVEL", "ORDER", "PRACTICE", "RESEARCH", "SENSE", "SERVICE", "PIECE", "BOSS", "SPORT", "HOUSE", "PAGE", "TERM", "TEST", "ANSWER", "SOUND", "FOCUS", "MATTER", "KIND", "SOIL", "BOARD", "PICTURE", "ACCESS", "GARDEN", "RANGE", "RATE", "REASON", "FUTURE", "SITE", "DEMAND", "EXERCISE", "IMAGE", "CASE", "CAUSE", "COAST", "ACTION", "BOAT", "RECORD", "RESULT", "SECTION", "BUILDING", "MOUSE", "CASH", "CLASS", "PERIOD", "PLAN", "STORE", "SIDE", "SUBJECT", "SPACE", "RULE", "STOCK", "WEATHER", "CHANCE", "FIGURE", "MODEL", "SOURCE", "BEGINNING", "EARTH", "PROGRAM", "CHICKEN", "DESIGN", "FEATURE", "HEAD", "MATERIAL", "PURPOSE", "QUESTION", "ROCK", "SALT", "BIRTH", "OBJECT", "SCALE", "NOTE", "PROFIT", "RENT", "SPEED", "STYLE", "BANK", "CRAFT", "STANDARD", "EXCHANGE", "FIRE", "POSITION", "PRESSURE", "STRESS", "ADVANTAGE", "BENEFIT", "FRAME", "ISSUE", "STEP", "CYCLE", "FACE", "ITEM", "METAL", "PAINT", "REVIEW", "ROOM", "SCREEN", "STRUCTURE", "VIEW", "ACCOUNT", "BALL", "MEDIUM", "SHARE", "BALANCE", "BOTTOM", "CHOICE", "GIFT", "IMPACT", "MACHINE", "SHAPE", "TOOL", "WIND", "ADDRESS", "CAREER", "CULTURE", "MORNING", "SIGN", "TABLE", "TASK", "CONDITION", "CONTACT", "CREDIT", "HOPE", "NETWORK", "NORTH", "SQUARE", "ATTEMPT", "DATE", "EFFECT", "LINK", "POST", "STAR", "VOICE", "CAPITAL", "CHALLENGE", "FRIEND", "SHOT", "BRUSH", "DEBATE", "EXIT", "FRONT", "FUNCTION", "LACK", "PLANT", "PLASTIC", "SPOT", "SUMMER", "TASTE", "THEME", "TRACK", "WING", "BRAIN", "BUTTON", "CLICK", "DESIRE", "FOOT", "INFLUENCE", "NOTICE", "RAIN", "WALL", "BASE", "DAMAGE", "DISTANCE", "FEELING", "PAIR", "SAVINGS", "STAFF", "SUGAR", "TARGET", "TEXT", "ANIMAL", "AUTHOR", "BUDGET", "DISCOUNT", "FILE", "GROUND", "LESSON", "MINUTE", "OFFICER", "PHASE", "REFERENCE", "REGISTER", "STAGE", "STICK", "TITLE", "TROUBLE", "BOWL", "BRIDGE", "CAMPAIGN", "CHARACTER", "CLUB", "EDGE", "EVIDENCE", "LETTER", "LOCK", "NOVEL", "OPTION", "PACK", "PARK", "QUARTER", "SKIN", "SORT", "WEIGHT", "BABY", "DISH", "FACTOR", "FRUIT", "GLASS", "JOINT", "MASTER", "MUSCLE", "STRENGTH", "TRAFFIC", "TRIP", "VEGETABLE", "APPEAL", "CHART", "GEAR", "IDEAL", "KITCHEN", "LAND", "MOTHER", "PARTY", "PRINCIPLE", "RELATIVE", "SALE", "SEASON", "SIGNAL", "SPIRIT", "STREET", "TREE", "WAVE", "BELT", "BENCH", "COPY", "DROP", "PATH", "PROGRESS", "PROJECT", "SOUTH", "STATUS", "STUFF", "TICKET", "TOUR", "ANGLE", "BREAKFAST", "DAUGHTER", "DEGREE", "DOCTOR", "DREAM", "DUTY", "ESSAY", "FATHER", "FINANCE", "HOUR", "JUICE", "LIMIT", "LUCK", "MILK", "MOUTH", "PEACE", "PIPE", "SEAT", "STABLE", "STORM", "SUBSTANCE", "TEAM", "TRICK", "AFTERNOON", "BEACH", "BLANK", "CATCH", "CHAIN", "CREAM", "CREW", "DETAIL", "GOLD", "INTERVIEW", "MARK", "MATCH", "MISSION", "PAIN", "PLEASURE", "SCORE", "SCREW", "SHOP", "SHOWER", "SUIT", "TONE", "WINDOW", "AGENT", "BAND", "BLOCK", "BONE", "CALENDAR", "COAT", "CONTEST", "CORNER", "COURT", "DISTRICT", "DOOR", "EAST", "FINGER", "GARAGE", "GUARANTEE", "HOLE", "HOOK", "IMPLEMENT", "LAYER", "LECTURE", "MANNER", "MEETING", "NOSE", "PARKING", "PARTNER", "PROFILE", "RESPECT", "RICE", "ROUTINE", "SCHEDULE", "SWIMMING", "TELEPHONE", "WINTER", "AIRLINE", "BATTLE", "BILL", "CAKE", "CODE", "CURVE", "DESIGNER", "DIMENSION", "DRESS", "EASE", "EMERGENCY", "EVENING", "EXTENSION", "FARM", "FIGHT", "GRADE", "HOLIDAY", "HORROR", "HORSE", "HOST", "HUSBAND", "LOAN", "MISTAKE", "MOUNTAIN", "NAIL", "NOISE", "OCCASION", "PACKAGE", "PATIENT", "PHRASE", "PROOF", "RACE", "RELIEF", "SAND", "SENTENCE", "SHOULDER", "SMOKE", "STOMACH", "STRING", "TOURIST", "TOWEL", "VACATION", "WEST", "WHEEL", "WINE", "ASSOCIATE", "BORDER", "BRANCH", "BREAST", "BROTHER", "BUDDY", "BUNCH", "CHIP", "COACH", "CROSS", "DOCUMENT", "DRAFT", "DUST", "EXPERT", "FLOOR", "GOLF", "HABIT", "IRON", "JUDGE", "KNIFE", "LANDSCAPE", "LEAGUE", "MAIL", "MESS", "NATIVE", "OPENING", "PARENT", "PATTERN", "POOL", "POUND", "REQUEST", "SALARY", "SHAME", "SHELTER", "SHOE", "SILVER", "TACKLE", "TANK", "TRUST", "BELL", "BIKE", "BRICK", "CHAIR", "CLOSET", "CLUE", "COLLAR", "COMMENT", "DEVIL", "DIET", "FEAR", "FUEL", "GLOVE", "JACKET", "LUNCH", "MONITOR", "MORTGAGE", "NURSE", "PACE", "PANIC", "PEAK", "PLANE", "REWARD", "SANDWICH", "SHOCK", "SPRAY", "WEEKEND", "YARD", "ALARM", "BICYCLE", "BITE", "BLIND", "BOTTLE", "CABLE", "CANDLE", "CLERK", "CLOUD", "CONCERT", "COUNTER", "FLOWER", "HARM", "KNEE", "LAWYER", "LEATHER", "LOAD", "MIRROR", "NECK", "PENSION", "PLATE", "PURPLE", "SHIP", "SKIRT", "SLICE", "SNOW", "STROKE", "SWITCH", "TRASH", "TUNE", "ZONE", "ANGER", "AWARD", "BITTER", "BOOT", "CAMP", "CANDY", "CARPET", "CHAMPION", "CHANNEL", "CLOCK", "COMFORT", "CRACK", "ENGINEER", "ENTRANCE", "FAULT", "GRASS", "HELL", "HIGHLIGHT", "INCIDENT", "ISLAND", "JOKE", "JURY", "MATE", "MOTOR", "NERVE", "PASSAGE", "PRIDE", "PRIEST", "PRIZE", "PROMISE", "RESIDENT", "RESORT", "RING", "ROOF", "ROPE", "SAIL", "SCHEME", "SCRIPT", "SOCK", "STATION", "TOWER", "TRUCK", "WITNESS", "GUARD", "WATCH", "SPRING", "PITCH", "SLIDE", "STRIP", "TRAIN", "ROLL", "MINE", "BEAR", "PUNCH"];
 
 let gameState = { code: '', teams: 2, grid: 5, cards: [], cardsLeft: {}, turn: 'red', guessesRemaining: 0, eliminated: [],
-                  chatLog: [], gameOver: false, winner: '', turnSeconds: 0, turnStartedAt: 0, myName: '', myTeam: 'red', myRole: 'guesser', gameMode: 'normal' };
+                  chatLog: [], gameOver: false, winner: '', turnSeconds: 0, turnStartedAt: 0, myName: '', myTeam: 'red', myRole: 'guesser', gameMode: 'normal',
+                  isHost: false, hostName: '', timerStarted: false };
 let channel = null;
 
 // DOM
@@ -29,6 +30,7 @@ const rulesModal = $('rules-modal'), closeRulesBtn = $('close-rules-btn'), srLiv
 const connectError = $('connect-error'), connectRetry = $('connect-retry'), connectLeave = $('connect-leave');
 const themeToggleLobby = $('theme-toggle-lobby'), themeToggleGame = $('theme-toggle-game');
 const roleToggleBtn = $('role-toggle-btn'), teamSpymasterBanner = $('team-spymaster-banner');
+const startTimerBtn = $('start-timer-btn');
 const selectedCards = new Set();
 
 // ── Theme management ──
@@ -122,7 +124,7 @@ async function rpc(name, args) {
 function saveSession() {
     try {
         sessionStorage.setItem('wg_session', JSON.stringify({
-            code: gameState.code, name: gameState.myName, team: gameState.myTeam, role: gameState.myRole }));
+            code: gameState.code, name: gameState.myName, team: gameState.myTeam, role: gameState.myRole, isHost: gameState.isHost }));
     } catch (e) { /* storage unavailable */ }
 }
 function loadSession() {
@@ -170,25 +172,30 @@ async function createGame() {
             const payload = {
                 game_code: makeCode(), teams, grid: MODES[teams].grid, board_cards: cards, cards_left: cardsLeft, turn, turn_seconds: turnSeconds,
                 game_mode: gameMode,
+                host_name: name,
+                timer_started: turnSeconds === 0,
                 chat_log: [{ type: 'system', text: `Game created. ${teamLabel(turn)} starts.` }]
             };
             ({ data, error } = await db.from('games').insert(payload).select().single());
-            if (error && (error.code === 'PGRST204' || /game_mode/.test(error.message))) {
+            if (error && (error.code === 'PGRST204' || /game_mode|host_name|timer_started/.test(error.message))) {
                 delete payload.game_mode;
+                delete payload.host_name;
+                delete payload.timer_started;
                 ({ data, error } = await db.from('games').insert(payload).select().single());
                 if (data && !data.game_mode) data.game_mode = gameMode;
             }
             if (!error || error.code !== '23505') break;
         }
         if (error) { showToast(error.message); return; }
-        await enterGame(data, { name, team, role });
+        try { sessionStorage.setItem('wg_is_host_' + data.game_code, 'true'); } catch (e) {}
+        await enterGame(data, { name, team, role, isHost: true });
     } finally {
         createBtn.disabled = false;
         createBtn.textContent = 'Create Game';
     }
 }
 
-async function joinGame({ code, name, team, role }) {
+async function joinGame({ code, name, team, role, isHost }) {
     role = role || 'guesser';
     code = (code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(code)) { showToast('Enter a 6-character code'); return; }
@@ -196,7 +203,10 @@ async function joinGame({ code, name, team, role }) {
     if (error) { showToast(error.message); return; }
     if (!data) { clearSession(); showToast('Game not found'); return; }
     if (TEAMS.indexOf(team) >= data.teams) { showToast(`This game has ${data.teams} teams`); return; }
-    await enterGame(data, { name, team, role });
+    let hostFlag = !!isHost;
+    try { if (sessionStorage.getItem('wg_is_host_' + code) === 'true') hostFlag = true; } catch (e) {}
+    if (data.host_name && data.host_name === name) hostFlag = true;
+    await enterGame(data, { name, team, role, isHost: hostFlag });
 }
 
 // ── Room ──
@@ -289,14 +299,24 @@ async function reconnect() {
 }
 window.addEventListener('online', () => { if (wakeRetry) wakeRetry(); });
 
-async function enterGame(row, { name, team, role }) {
+async function enterGame(row, { name, team, role, isHost = false }) {
     document.body.classList.add('connecting');
     boardEl.setAttribute('aria-busy', 'true');
     announcedLog = null;
     seen = null;
     try {
         role = role || 'guesser';
-        Object.assign(gameState, { code: row.game_code, myName: name || 'Anonymous', myTeam: team, myRole: role });
+        let hostFlag = !!isHost;
+        try { if (sessionStorage.getItem('wg_is_host_' + row.game_code) === 'true') hostFlag = true; } catch (e) {}
+        if (row.host_name && row.host_name === (name || 'Anonymous')) hostFlag = true;
+        Object.assign(gameState, {
+            code: row.game_code,
+            myName: name || 'Anonymous',
+            myTeam: team,
+            myRole: role,
+            isHost: hostFlag,
+            hostName: row.host_name || ''
+        });
         saveSession();
         history.replaceState(null, '', '?code=' + row.game_code);
 
@@ -363,6 +383,7 @@ async function leaveGame() {
     history.replaceState(null, '', location.pathname);
     selectedCards.clear();
     updateSuspenseControls();
+    updateStartTimerControl();
     swapScreens(false);
     gameOverOpener = null;
     gameOverModal.classList.add('hidden');
@@ -393,8 +414,22 @@ function isStale(row) {
 
 function syncStateWithDB(row) {
     if (isStale(row)) return;
+    const wasGameOver = gameState.gameOver;
+    const isRestart = (wasGameOver && !row.game_over) || (seen && boardSig(row) !== seen.sig && !row.game_over);
     seen = { sig: boardSig(row), rank: stateRank(row), at: stamp(row) || 0 };
     const prevTurn = gameState.turn;
+
+    let timerStarted = row.timer_started;
+    if (timerStarted === undefined || timerStarted === null) {
+        if ((row.turn_seconds || 0) === 0) {
+            timerStarted = true;
+        } else if (Array.isArray(row.chat_log)) {
+            timerStarted = row.chat_log.some((m) => m && (m.type === 'timer_start' || (typeof m.text === 'string' && m.text.includes('Timer started'))));
+        } else {
+            timerStarted = false;
+        }
+    }
+
     Object.assign(gameState, {
         cards: row.board_cards,
         cardsLeft: row.cards_left || { red: row.red_left, blue: row.blue_left }, // old-row fallback
@@ -408,8 +443,16 @@ function syncStateWithDB(row) {
         teams: row.teams || 2,
         grid: row.grid || 5,
         turnSeconds: row.turn_seconds || 0,
-        turnStartedAt: row.turn_started_at ? new Date(row.turn_started_at).getTime() : Date.now()
+        turnStartedAt: row.turn_started_at ? new Date(row.turn_started_at).getTime() : Date.now(),
+        hostName: row.host_name || gameState.hostName || '',
+        timerStarted: !!timerStarted
     });
+    if (row.host_name && row.host_name === gameState.myName) {
+        gameState.isHost = true;
+    }
+    if (isRestart) {
+        setRole('guesser');
+    }
     if (displayGameMode) {
         displayGameMode.textContent = gameState.gameMode.toUpperCase();
         displayGameMode.className = `badge badge-mode ${gameState.gameMode}`;
@@ -441,6 +484,12 @@ function tickTimer() {
     const on = g.turnSeconds > 0 && !g.gameOver && !!channel;
     el.classList.toggle('hidden', !on);
     if (!on) return;
+    if (!g.timerStarted) {
+        const secs = g.turnSeconds;
+        el.textContent = `⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+        el.classList.remove('low');
+        return;
+    }
     const left = Math.max(0, Math.ceil((g.turnStartedAt + g.turnSeconds * 1000 - Date.now()) / 1000));
     el.textContent = `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     el.classList.toggle('low', left <= 10);
@@ -520,6 +569,7 @@ function updateUI() {
     endTurnBtn.disabled = !(myRole === 'guesser' && myTurn);
     hintWordInput.disabled = hintNumberInput.disabled = submitHintBtn.disabled = !(myRole === 'spymaster' && myTurn && n === 0);
     updateSuspenseControls();
+    updateStartTimerControl();
 }
 
 // Chat entries come from the database. Render what is well-formed and never throw on the rest, so one bad entry
@@ -628,6 +678,55 @@ function updateRoleControls() {
         } else {
             teamSpymasterBanner.innerHTML = `<span><strong>${teamLabel(myTeam)} Spymaster:</strong> <em>Vacant (first to choose claims it)</em></span>`;
         }
+    }
+}
+
+function isHost() {
+    if (gameState.isHost) return true;
+    if (gameState.hostName && gameState.hostName === gameState.myName) return true;
+    try {
+        if (sessionStorage.getItem('wg_is_host_' + gameState.code) === 'true') return true;
+    } catch (e) {}
+    return false;
+}
+
+function updateStartTimerControl() {
+    if (!startTimerBtn) return;
+    const g = gameState;
+    const needed = g.turnSeconds > 0 && !g.timerStarted && !g.gameOver && !!g.code;
+    startTimerBtn.classList.toggle('hidden', !needed);
+    if (!needed) return;
+
+    if (isHost()) {
+        startTimerBtn.disabled = false;
+        startTimerBtn.textContent = '▶ Start Timer';
+        startTimerBtn.title = 'Start the turn timer for this round';
+        startTimerBtn.classList.remove('btn-secondary');
+        startTimerBtn.classList.add('btn-primary', 'btn-start-timer');
+    } else {
+        startTimerBtn.disabled = true;
+        startTimerBtn.textContent = '⏳ Waiting for host to start';
+        startTimerBtn.title = 'Waiting for the room creator to start the timer';
+        startTimerBtn.classList.remove('btn-primary', 'btn-start-timer');
+        startTimerBtn.classList.add('btn-secondary');
+    }
+}
+
+async function handleStartTimerClick() {
+    if (!isHost() || gameState.timerStarted || gameState.turnSeconds <= 0) return;
+    startTimerBtn.disabled = true;
+    startTimerBtn.textContent = 'Starting...';
+    try {
+        const res = await rpc('start_timer', { p_code: gameState.code });
+        if (!res) {
+            gameState.timerStarted = true;
+            gameState.turnStartedAt = Date.now();
+            updateUI();
+            tickTimer();
+        }
+    } finally {
+        startTimerBtn.disabled = false;
+        updateStartTimerControl();
     }
 }
 
@@ -827,6 +926,7 @@ joinBtn.addEventListener('click', async () => {
 if (themeToggleLobby) themeToggleLobby.addEventListener('click', toggleTheme);
 if (themeToggleGame) themeToggleGame.addEventListener('click', toggleTheme);
 if (roleToggleBtn) roleToggleBtn.addEventListener('click', handleRoleToggleClick);
+if (startTimerBtn) startTimerBtn.addEventListener('click', handleStartTimerClick);
 if (submitGuessesBtn) submitGuessesBtn.addEventListener('click', submitSuspenseGuesses);
 if (clearSelectionBtn) clearSelectionBtn.addEventListener('click', () => {
     selectedCards.clear();

@@ -146,7 +146,17 @@ async function lobby(teams) {
 
 const s = (L) => L.all[0].st;
 const settle = () => sleep(80);
-async function hint(L, team, word, n) { const p = L.P[team].spy; p.val('hint-word', word); p.val('hint-number', String(n)); p.click('submit-hint'); await settle(); }
+async function hint(L, team, word, n) {
+    const p = L.P[team].spy;
+    if (p.st.myRole !== 'spymaster' && p.doc.getElementById('role-toggle-btn')) {
+        p.click('role-toggle-btn');
+        await settle();
+    }
+    p.val('hint-word', word);
+    p.val('hint-number', String(n));
+    p.click('submit-hint');
+    await settle();
+}
 async function reveal(L, team, idx) { L.P[team].gu.card(idx).click(); await settle(); }
 const unrevealed = (L, team) => s(L).cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === team && !c.revealed);
 const nextOf = (L, t) => { const n = s(L).teams; const el = s(L).eliminated; for (let k = 1; k <= n; k++) { const c = TEAMS[(TEAMS.indexOf(t) + k) % n]; if (!el.includes(c)) return c; } };
@@ -271,6 +281,7 @@ L.P.red.gu.click('play-again-btn'); await settle();
 st = s(L);
 check('play again: new board 25, counts 8/8, modal hidden, not over, start ∈ teams', st.cards.length === 25 && st.cardsLeft.red === 8 && st.cardsLeft.blue === 8 && !st.gameOver && ['red', 'blue'].includes(st.turn) && L.all.every((p) => p.hidden('game-over-modal')));
 check('play again: chat reset "Game restarted!"', L.all[0].txt('chat-log').includes('Game restarted!'));
+check('play again: all players reset to guesser in start of next round', L.all.every((p) => p.st.myRole === 'guesser'));
 // assassin in 2-team
 const T1 = s(L).turn, O1 = nextOf(L, T1);
 await giveHintTo(L, T1, 1);
@@ -287,7 +298,7 @@ L.P.blue.gu.click('leave-btn'); await sleep(80); check('leave: second click leav
 {
     const sess = JSON.parse(L.all[0].w.sessionStorage.getItem('wg_session'));
     const r = mkPlayer('refresh', { session: sess }); await sleep(250);
-    check('refresh: auto-rejoin same room/role', !r.hidden('game-screen') && r.st.code === L.code && r.st.myRole === 'spymaster' && r.txt('chat-log').includes('Rejoined'));
+    check('refresh: auto-rejoin same room/role', !r.hidden('game-screen') && r.st.code === L.code && r.st.myRole === sess.role && r.txt('chat-log').includes('Rejoined'));
     const q = mkPlayer('code-prefill', { url: `http://localhost/?code=${L.code.toLowerCase()}` });
     check('?code= prefills join form (uppercased)', q.doc.getElementById('join-id').value === L.code);
     const bad = await join('bad', 'ZZZZZZ', 'red', 'guesser'); check('join unknown code → toast "Game not found"', bad.toast() === 'Game not found' && !bad.hidden('lobby-screen'));
@@ -834,8 +845,12 @@ console.log('\n== Cleanup: empty chat entries + cards without a word ==');
     check('timer: early timeout_turn is a no-op', r.data.turn === 'red' && r.data.chat_log.length === 0);
     await pg.query("update games set turn_started_at = now() - interval '31 seconds' where game_code in ('TIMER1','TIMER0')");
     r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
+    check('timer: before start_timer, timeout_turn does not skip', r.data.turn === 'red');
+    await be.rpc('start_timer', { p_code: 'TIMER1' });
+    await pg.query("update games set turn_started_at = now() - interval '31 seconds' where game_code in ('TIMER1','TIMER0')");
+    r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
     check('timer: expired turn skips to next team with fresh clock', r.data.turn === 'blue' && r.data.guesses_remaining === 0
-        && Date.now() - new Date(r.data.turn_started_at).getTime() < 5000 && r.data.chat_log[0].text === 'RED ran out of time');
+        && Date.now() - new Date(r.data.turn_started_at).getTime() < 5000 && r.data.chat_log.some((m) => m.text === 'RED ran out of time'));
     r = await be.rpc('timeout_turn', { p_code: 'TIMER1' });
     check('timer: repeated call after skip does not skip again', r.data.turn === 'blue');
     r = await be.rpc('timeout_turn', { p_code: 'TIMER0' });
@@ -1006,6 +1021,83 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('suspense: turn concluded and passed to next team', updatedRow.data.turn === otherTeam);
     check('suspense: guesses remaining reset to 0', updatedRow.data.guesses_remaining === 0);
     check('suspense: controls hidden after turn end', startGu.doc.getElementById('suspense-controls').classList.contains('hidden'));
+}
+
+// ═════════ role reset on next round & host start button ═════════
+{
+    console.log('\n[role reset & host start button in timed games]');
+    const pHost = mkPlayer('HostAlice');
+    pHost.val('create-name', 'HostAlice');
+    pHost.val('create-teams', '2');
+    pHost.doc.getElementById('create-teams').dispatchEvent(new pHost.w.Event('change'));
+    pHost.val('create-team', 'red');
+    pHost.val('create-timer', '60');
+    pHost.click('create-btn');
+    await sleep(150);
+
+    const roomCode = pHost.st.code;
+    const pGuest = mkPlayer('GuestBob');
+    pGuest.val('join-name', 'GuestBob');
+    pGuest.val('join-id', roomCode);
+    pGuest.val('join-team', 'blue');
+    pGuest.click('join-btn');
+    await sleep(150);
+
+    // Verify initial states
+    check('start-btn: host player is recognized as host', pHost.st.isHost === true);
+    check('start-btn: guest player is not host', pGuest.st.isHost === false);
+    check('start-btn: timer_started is false initially', pHost.st.timerStarted === false && pGuest.st.timerStarted === false);
+
+    // Verify start button visibility and state
+    const hostStartBtn = pHost.doc.getElementById('start-timer-btn');
+    const guestStartBtn = pGuest.doc.getElementById('start-timer-btn');
+    check('start-btn: button visible for both', !hostStartBtn.classList.contains('hidden') && !guestStartBtn.classList.contains('hidden'));
+    check('start-btn: enabled for host with Start text', hostStartBtn.disabled === false && hostStartBtn.textContent.includes('Start'));
+    check('start-btn: disabled for guest with Waiting text', guestStartBtn.disabled === true && guestStartBtn.textContent.includes('Waiting'));
+    check('start-btn: timer badge shows ready/waiting', pHost.txt('turn-timer').includes('1:00') && pGuest.txt('turn-timer').includes('1:00'));
+
+    // Guest clicking start button is no-op
+    guestStartBtn.click();
+    await sleep(50);
+    check('start-btn: guest click does not start timer', pHost.st.timerStarted === false);
+
+    // Host clicks start button
+    hostStartBtn.click();
+    await settle();
+
+    // Verify timer is started on all tabs
+    check('start-btn: host click starts timer across all tabs', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
+    check('start-btn: button is hidden after start', hostStartBtn.classList.contains('hidden') && guestStartBtn.classList.contains('hidden'));
+
+    // Now test role reset at start of next round
+    // Both become spymasters
+    pHost.click('role-toggle-btn'); await sleep(80);
+    pGuest.click('role-toggle-btn'); await sleep(80);
+    check('role-reset: host is spymaster', pHost.st.myRole === 'spymaster');
+    check('role-reset: guest is spymaster', pGuest.st.myRole === 'spymaster');
+
+    // Win the game: end round
+    // Reveal assassin for current turn team
+    const tTurn = pHost.st.turn;
+    const assassinCard = pHost.st.cards.map((c, i) => ({ ...c, i })).find((c) => c.team === 'black');
+    await pHost.ev(`rpc('give_hint', { p_code: '${roomCode}', p_team: '${tTurn}', p_word: 'CLUE', p_n: 1 })`);
+    await pHost.ev(`rpc('reveal_card', { p_code: '${roomCode}', p_team: '${tTurn}', p_index: ${assassinCard.i} })`);
+    await settle();
+
+    check('role-reset: game over reached', pHost.st.gameOver === true);
+
+    // Host clicks Play Again
+    pHost.click('play-again-btn');
+    await settle();
+
+    // In start of next round: all players must be guessers!
+    check('role-reset: host reset to guesser in next round', pHost.st.myRole === 'guesser' && !pHost.doc.body.classList.contains('spymaster'));
+    check('role-reset: guest reset to guesser in next round', pGuest.st.myRole === 'guesser' && !pGuest.doc.body.classList.contains('spymaster'));
+    check('role-reset: spymaster buttons offer Become Spymaster', pHost.txt('role-toggle-btn').includes('Become Spymaster') && pGuest.txt('role-toggle-btn').includes('Become Spymaster'));
+
+    // And in next round of timed game: timer requires host start again!
+    check('role-reset: timer paused again in next round', pHost.st.timerStarted === false && pGuest.st.timerStarted === false);
+    check('role-reset: start button visible again for host in next round', !pHost.doc.getElementById('start-timer-btn').classList.contains('hidden') && pHost.doc.getElementById('start-timer-btn').disabled === false);
 }
 
 // ═════════ error log ═════════
