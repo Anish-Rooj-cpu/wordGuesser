@@ -19,6 +19,7 @@ create table games (
   timer_started     boolean not null default false,
   turn_seconds      int  not null default 0 check (turn_seconds between 0 and 600), -- 0 = untimed
   turn_started_at   timestamptz not null default now(), -- clock restarts on each new turn and on each hint
+  turns_in_round    text[] not null default '{}',
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
@@ -61,6 +62,56 @@ returns jsonb language sql immutable as $$
   ) s;
 $$;
 
+-- ---------- advance_turn_cycle ----------
+create or replace function advance_turn_cycle(g games)
+returns games language plpgsql as $$
+declare
+  rem      text[];
+  nt       text;
+  winners  text[];
+begin
+  g.turns_in_round := array_append(g.turns_in_round, g.turn);
+  rem := remaining_teams(g.teams, g.eliminated);
+  nt := next_team(g.turn, g.teams, g.eliminated);
+
+  -- Pass turns for any non-eliminated teams that already have 0 cards left
+  while nt is not null and (g.cards_left ->> nt)::int = 0 and not (rem <@ g.turns_in_round) loop
+    g.turns_in_round := array_append(g.turns_in_round, nt);
+    g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(nt) || ' has cleared all cards and passes.');
+    if rem <@ g.turns_in_round then exit; end if;
+    nt := next_team(nt, g.teams, g.eliminated);
+  end loop;
+
+  -- If every active team has completed a turn in this round, check if anyone won!
+  if rem <@ g.turns_in_round then
+    select array_agg(t order by i) into winners
+    from unnest((array['red','blue','green','cyan'])[1:g.teams]) with ordinality as u(t, i)
+    where t <> all(g.eliminated) and (g.cards_left ->> t)::int = 0;
+
+    if winners is not null and cardinality(winners) > 0 then
+      g.game_over := true;
+      g.winner := array_to_string(winners, ', ');
+      if cardinality(winners) = 1 then
+        g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(winners[1]) || ' wins!');
+      else
+        g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(array_to_string(winners, ' & ')) || ' win! (TIE)');
+      end if;
+      select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
+        from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
+      g.guesses_remaining := 0;
+      return g;
+    end if;
+
+    -- No winner yet; reset turns_in_round for the next round
+    g.turns_in_round := '{}';
+  end if;
+
+  g.turn := nt;
+  g.guesses_remaining := 0;
+  g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(nt) || ' team''s turn');
+  return g;
+end $$;
+
 -- ---------- reveal_card ----------
 create or replace function reveal_card(p_code text, p_team text, p_index int)
 returns games language plpgsql security definer set search_path = public as $$
@@ -93,36 +144,24 @@ begin
       g.game_over := true;
       g.winner := coalesce(rem[1], '');
       g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.winner) || ' wins!');
+      select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
+        from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
     else
-      g.turn := next_team(g.turn, g.teams, g.eliminated);
-      g.guesses_remaining := 0;
-      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
+      g := advance_turn_cycle(g);
     end if;
   else
     if ct <> 'neutral' then
       g.cards_left := jsonb_set(g.cards_left, array[ct], to_jsonb((g.cards_left ->> ct)::int - 1));
-      if (g.cards_left ->> ct)::int = 0 and ct <> all(g.eliminated) then
-        g.game_over := true;
-        g.winner := ct;
-        g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(ct) || ' wins!');
-      end if;
     end if;
-    if not g.game_over and g.guesses_remaining = 0 then
-      g.turn := next_team(g.turn, g.teams, g.eliminated);
-      g.guesses_remaining := 0;
-      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
+    if (g.cards_left ->> p_team)::int = 0 or g.guesses_remaining = 0 then
+      g := advance_turn_cycle(g);
     end if;
-  end if;
-
-  if g.game_over then
-    select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
-      from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
   end if;
 
   update games set
     board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
     guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
-    game_over = g.game_over, winner = g.winner, updated_at = now(),
+    game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round, updated_at = now(),
     turn_started_at = case when turn <> g.turn then now() else turn_started_at end
   where game_code = p_code
   returning * into g;
@@ -139,7 +178,6 @@ declare
   idx            int;
   rem            text[];
   has_assassin   boolean := false;
-  finished_team  text := null;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
@@ -170,9 +208,6 @@ begin
       has_assassin := true;
     elsif ct <> 'neutral' then
       g.cards_left := jsonb_set(g.cards_left, array[ct], to_jsonb((g.cards_left ->> ct)::int - 1));
-      if (g.cards_left ->> ct)::int = 0 and ct <> all(g.eliminated) then
-        finished_team := ct;
-      end if;
     end if;
   end loop;
 
@@ -185,32 +220,19 @@ begin
       g.game_over := true;
       g.winner := coalesce(rem[1], '');
       g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.winner) || ' wins!');
+      select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
+        from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
     else
-      g.turn := next_team(g.turn, g.teams, g.eliminated);
-      g.guesses_remaining := 0;
-      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
+      g := advance_turn_cycle(g);
     end if;
   else
-    if finished_team is not null then
-      g.game_over := true;
-      g.winner := finished_team;
-      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(finished_team) || ' wins!');
-    else
-      g.turn := next_team(g.turn, g.teams, g.eliminated);
-      g.guesses_remaining := 0;
-      g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' team''s turn');
-    end if;
-  end if;
-
-  if g.game_over then
-    select jsonb_agg(c || '{"revealed":true}'::jsonb order by o) into g.board_cards
-      from jsonb_array_elements(g.board_cards) with ordinality as t(c, o);
+    g := advance_turn_cycle(g);
   end if;
 
   update games set
     board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
     guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
-    game_over = g.game_over, winner = g.winner, updated_at = now(),
+    game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round, updated_at = now(),
     turn_started_at = case when turn <> g.turn then now() else turn_started_at end
   where game_code = p_code
   returning * into g;
@@ -248,17 +270,18 @@ end $$;
 -- ---------- end_turn ----------
 create or replace function end_turn(p_code text, p_team text)
 returns games language plpgsql security definer set search_path = public as $$
-declare g games; nt text;
+declare g games;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
   if g.game_over then raise exception 'Game is over'; end if;
   if g.turn <> p_team then raise exception 'Not your turn'; end if;
-  nt := next_team(g.turn, g.teams, g.eliminated);
+  g := advance_turn_cycle(g);
   update games set
-    turn = nt, guesses_remaining = 0, turn_started_at = now(),
-    chat_log = chat_log || jsonb_build_object('type','system','text', upper(nt) || ' team''s turn'),
-    updated_at = now()
+    board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
+    guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
+    game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round,
+    turn_started_at = now(), updated_at = now()
   where game_code = p_code
   returning * into g;
   return g;
@@ -267,19 +290,20 @@ end $$;
 -- ---------- timeout_turn (anyone may call; only acts once the turn clock has run out) ----------
 create or replace function timeout_turn(p_code text)
 returns games language plpgsql security definer set search_path = public as $$
-declare g games; nt text;
+declare g games;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
   if not g.timer_started or g.game_over or g.turn_seconds = 0 or now() < g.turn_started_at + make_interval(secs => g.turn_seconds) then
     return g; -- nothing to do; callers just get the current row
   end if;
-  nt := next_team(g.turn, g.teams, g.eliminated);
+  g.chat_log := g.chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' ran out of time');
+  g := advance_turn_cycle(g);
   update games set
-    turn = nt, guesses_remaining = 0, turn_started_at = now(),
-    chat_log = chat_log || jsonb_build_object('type','system','text', upper(g.turn) || ' ran out of time')
-                        || jsonb_build_object('type','system','text', upper(nt) || ' team''s turn'),
-    updated_at = now()
+    board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
+    guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
+    game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round,
+    turn_started_at = now(), updated_at = now()
   where game_code = p_code
   returning * into g;
   return g;
@@ -305,7 +329,7 @@ begin
 end $$;
 
 -- ---------- restart_game ----------
-create or replace function restart_game(p_code text, p_cards jsonb)
+create or replace function restart_game(p_code text, p_cards jsonb, p_start_team text default null)
 returns games language plpgsql security definer set search_path = public as $$
 declare g games; left_ jsonb; start_team text;
 begin
@@ -315,13 +339,18 @@ begin
   if (select count(*) from jsonb_array_elements(p_cards) c where c->>'team' = 'black') <> g.teams - 1 then raise exception 'Board must have % assassins', g.teams - 1; end if;
   left_ := derive_cards_left(p_cards);
   if (select count(*) from jsonb_object_keys(left_)) <> g.teams then raise exception 'Board must contain % teams', g.teams; end if;
-  start_team := (array['red','blue','green','cyan'])[1 + floor(random() * g.teams)::int];
+
+  if p_start_team is not null and p_start_team = any((array['red','blue','green','cyan'])[1:g.teams]) then
+    start_team := p_start_team;
+  else
+    start_team := (array['red','blue','green','cyan'])[1 + floor(random() * g.teams)::int];
+  end if;
 
   update games set
     board_cards = p_cards, cards_left = left_, turn = start_team, guesses_remaining = 0, eliminated = '{}',
     chat_log = jsonb_build_array(jsonb_build_object('type','system','text','Game restarted! ' || upper(start_team) || ' starts.')),
     game_over = false, winner = '', updated_at = now(), turn_started_at = now(),
-    timer_started = false
+    timer_started = false, turns_in_round = '{}'
   where game_code = p_code
   returning * into g;
   return g;
@@ -350,4 +379,4 @@ revoke all on table games from anon;
 grant select, insert on table games to anon;
 grant execute on function next_team(text,int,text[]), remaining_teams(int,text[]), derive_cards_left(jsonb),
   reveal_card(text,text,int), reveal_cards_batch(text,text,int[]), give_hint(text,text,text,int), end_turn(text,text), timeout_turn(text),
-  send_chat(text,text,text,text), restart_game(text,jsonb), start_timer(text) to anon;
+  send_chat(text,text,text,text), restart_game(text,jsonb,text), start_timer(text) to anon;

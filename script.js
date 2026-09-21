@@ -794,13 +794,25 @@ function renderGameOver() {
     if (!gameState.gameOver) { closeGameOver(); return; }
     if (!gameOverModal.classList.contains('hidden')) return;
     gameOverOpener = document.activeElement;
-    const w = gameState.winner;
-    winnerText.textContent = w ? `${teamLabel(w)} TEAM WINS!` : 'Game over';
-    if (w) winnerText.dataset.team = w; else winnerText.removeAttribute('data-team');
+    const w = (gameState.winner || '').trim();
+    const winners = w ? w.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
+    if (winners.length > 1) {
+        winnerText.textContent = `${winners.map((t) => teamLabel(t)).join(' & ')} TEAMS WIN! (TIE)`;
+        winnerText.classList.add('tie');
+        winnerText.removeAttribute('data-team');
+    } else if (winners.length === 1) {
+        winnerText.textContent = `${teamLabel(winners[0])} TEAM WINS!`;
+        winnerText.dataset.team = winners[0];
+        winnerText.classList.remove('tie');
+    } else {
+        winnerText.textContent = 'Game over';
+        winnerText.removeAttribute('data-team');
+        winnerText.classList.remove('tie');
+    }
     winnerText.classList.add('win');
     gameOverModal.classList.remove('hidden');
     playAgainBtn.focus();
-    if (w && w === gameState.myTeam && window.confetti) confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+    if (winners.includes(gameState.myTeam) && window.confetti) confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
 }
 
 // ── Actions (all through rpc) ──
@@ -903,7 +915,15 @@ async function playAgain() {
     playAgainBtn.disabled = true;
     playAgainBtn.textContent = 'Restarting...';
     try {
-        await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams) });
+        const startTeam = TEAMS[Math.floor(Math.random() * gameState.teams)];
+        const res = await rpc('restart_game', {
+            p_code: gameState.code,
+            p_cards: generateBoard(gameState.teams),
+            p_start_team: startTeam
+        });
+        if (!res) {
+            await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams) });
+        }
     } finally {
         playAgainBtn.disabled = false;
         playAgainBtn.textContent = '🔄 Play Again';

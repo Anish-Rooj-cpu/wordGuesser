@@ -598,6 +598,12 @@ body.spymaster .card:not(.revealed)[data-team="black"]   { border-color: #555; b
     margin-bottom: 28px;
 }
 .modal-card h2[data-team] { color: var(--tc); text-shadow: 0 0 30px var(--tc-glow); }
+.modal-card h2.tie {
+    background: linear-gradient(135deg, #f59e0b, #ec4899, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+}
 .modal-actions { display: flex; gap: 15px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
 
 .rules-card { text-align: left; max-width: 600px; padding: 40px; }

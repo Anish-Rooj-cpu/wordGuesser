@@ -362,7 +362,7 @@ L.P.red.gu.click('play-again-btn'); await settle();
 check('3t: play again keeps 3 teams / 36 cards / clears eliminated', s(L).cards.length === 36 && s(L).eliminated.length === 0 && !s(L).gameOver);
 await playToEnd(L, '3t');
 st = s(L);
-check('3t: win by clearing all own cards', st.gameOver && st.cardsLeft[st.winner] === 0 && st.eliminated.length === 0, st.winner);
+check('3t: win by clearing all own cards', st.gameOver && st.winner.split(', ').every((t) => st.cardsLeft[t] === 0) && st.eliminated.length === 0, st.winner);
 
 // ═════════ 4 teams ═════════
 console.log('\n== 4-team game ==');
@@ -390,7 +390,7 @@ check(`4t: 3 assassins → last team ${last} wins`, st.gameOver && st.winner ===
 L.P.red.gu.click('play-again-btn'); await settle();
 await playToEnd(L, '4t');
 st = s(L);
-check('4t: win by clearing all 9 own cards', st.gameOver && st.cardsLeft[st.winner] === 0 && st.cards.every((x) => x.revealed));
+check('4t: win by clearing all 9 own cards', st.gameOver && st.winner.split(', ').every((t) => st.cardsLeft[t] === 0) && st.cards.every((x) => x.revealed), st.winner);
 
 // ═════════ S4: reconnect / refresh / tab close ═════════
 console.log('\n== S4: subscription + reconnect ==');
@@ -1098,6 +1098,66 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     // And in next round of timed game: timer requires host start again!
     check('role-reset: timer paused again in next round', pHost.st.timerStarted === false && pGuest.st.timerStarted === false);
     check('role-reset: start button visible again for host in next round', !pHost.doc.getElementById('start-timer-btn').classList.contains('hidden') && pHost.doc.getElementById('start-timer-btn').disabled === false);
+}
+
+// ═════════ End-of-round winner declaration & starting team randomization ═════════
+{
+    console.log('\n[end-of-round winner declaration & starting team randomization]');
+    // Create a 3-team game: red, blue, green
+    const pRed = await create('p-red', 3, 'red', 'guesser');
+    const rCode = pRed.st.code;
+    const pBlue = await join('p-blue', rCode, 'blue', 'guesser');
+    const pGreen = await join('p-green', rCode, 'green', 'guesser');
+
+    // Test starting team randomization across restart_game calls
+    const starts = new Set();
+    for (let i = 0; i < 20; i++) {
+        const res = await be.rpc('restart_game', { p_code: rCode, p_cards: structuredClone(pRed.ev('generateBoard(3)')) });
+        starts.add(res.data.turn);
+    }
+    check('random-start: restart_game produces multiple starting teams across rounds', starts.size >= 2, Array.from(starts).join());
+
+    // Now test end-of-round tie declaration in a 3-team game:
+    // Restart with Red starting
+    await pRed.ev(`rpc('restart_game', { p_code: '${rCode}', p_cards: generateBoard(3), p_start_team: 'red' })`);
+    await settle();
+
+    // Red's turn: clear ALL 8 Red cards!
+    const redCards = pRed.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'red');
+    await pRed.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'red', p_word: 'FIRE', p_n: 8 })`);
+    for (const c of redCards) {
+        await pRed.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'red', p_index: ${c.i} })`);
+    }
+    await settle();
+
+    // Red has 0 cards left! BUT it should NOT be game over yet because Blue and Green have not played their turn in this round!
+    check('end-of-round: Red cleared all cards, but game_over is FALSE mid-round', pRed.st.gameOver === false && pRed.st.cardsLeft.red === 0);
+    check('end-of-round: turn passed to blue', pRed.st.turn === 'blue');
+
+    // Blue's turn: clear ALL 8 Blue cards!
+    const blueCards = pBlue.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'blue');
+    await pBlue.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'blue', p_word: 'WATER', p_n: 8 })`);
+    for (const c of blueCards) {
+        await pBlue.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'blue', p_index: ${c.i} })`);
+    }
+    await settle();
+
+    // Blue also has 0 cards left! Still NOT game over because Green has not finished their turn in this round!
+    check('end-of-round: Blue also cleared all cards, but game_over is still FALSE', pRed.st.gameOver === false && pRed.st.cardsLeft.blue === 0);
+    check('end-of-round: turn passed to green', pRed.st.turn === 'green');
+
+    // Green takes their turn, gives a hint, but ends turn without clearing all cards
+    await pGreen.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'green', p_word: 'EARTH', p_n: 1 })`);
+    await pGreen.ev(`rpc('end_turn', { p_code: '${rCode}', p_team: 'green' })`);
+    await settle();
+
+    // NOW the entire turn cycle of all 3 teams has ended! Game over must be TRUE!
+    check('end-of-round: after Green ends turn, round is complete and game_over is TRUE', pRed.st.gameOver === true);
+    check('end-of-round: multiple winners declared (red, blue tie)', pRed.st.winner.includes('red') && pRed.st.winner.includes('blue') && !pRed.st.winner.includes('green'), pRed.st.winner);
+    check('end-of-round: modal shows TIE heading', pRed.txt('winner-text').includes('RED & BLUE TEAMS WIN! (TIE)'));
+    check('end-of-round: confetti called for Red player', pRed.w.confettiCalls > 0);
+    check('end-of-round: confetti called for Blue player', pBlue.w.confettiCalls > 0);
+    check('end-of-round: NO confetti for Green player', pGreen.w.confettiCalls === 0);
 }
 
 // ═════════ error log ═════════
