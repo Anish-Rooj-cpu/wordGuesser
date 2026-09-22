@@ -120,9 +120,11 @@ declare
   card jsonb;
   ct   text;
   rem  text[];
+  old_turn text;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
+  old_turn := g.turn;
   if g.game_over then raise exception 'Game is over'; end if;
   if g.turn <> p_team then raise exception 'Not your turn'; end if;
   if g.guesses_remaining <= 0 then raise exception 'Wait for a hint'; end if;
@@ -162,7 +164,7 @@ begin
     board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
     guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
     game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round, updated_at = now(),
-    turn_started_at = case when turn <> g.turn then now() else turn_started_at end
+    turn_started_at = case when g.turn <> old_turn then now() else turn_started_at end
   where game_code = p_code
   returning * into g;
   return g;
@@ -178,9 +180,11 @@ declare
   idx            int;
   rem            text[];
   has_assassin   boolean := false;
+  old_turn       text;
 begin
   select * into g from games where game_code = p_code for update;
   if not found then raise exception 'Game not found'; end if;
+  old_turn := g.turn;
   if g.game_over then raise exception 'Game is over'; end if;
   if g.turn <> p_team then raise exception 'Not your turn'; end if;
   if g.guesses_remaining <= 0 then raise exception 'Wait for a hint'; end if;
@@ -233,7 +237,7 @@ begin
     board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
     guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
     game_over = g.game_over, winner = g.winner, turns_in_round = g.turns_in_round, updated_at = now(),
-    turn_started_at = case when turn <> g.turn then now() else turn_started_at end
+    turn_started_at = case when g.turn <> old_turn then now() else turn_started_at end
   where game_code = p_code
   returning * into g;
   return g;

@@ -1069,6 +1069,34 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('start-btn: host click starts timer across all tabs', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
     check('start-btn: button is hidden after start', hostStartBtn.classList.contains('hidden') && guestStartBtn.classList.contains('hidden'));
 
+    // Verify chat does not reset timerStarted or turnStartedAt
+    const t0 = pHost.st.turnStartedAt;
+    pHost.val('chat-text', 'Hello from host');
+    pHost.click('submit-chat');
+    await settle();
+    check('timer: chat does not reset timerStarted', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
+    check('timer: chat does not reset turnStartedAt', pHost.st.turnStartedAt === t0 && pGuest.st.turnStartedAt === t0);
+
+    // Give a 2-word hint and reveal 1 own-team card (guesses remaining = 1)
+    const curTeam = pHost.st.turn;
+    const isHostTurn = curTeam === pHost.st.myTeam;
+    const actor = isHostTurn ? pHost : pGuest;
+    const actorRoleBtn = actor.doc.getElementById('role-toggle-btn');
+    actorRoleBtn.click(); await sleep(80);
+    actor.val('hint-word', 'TESTCLUE');
+    actor.val('hint-number', '2');
+    actor.click('submit-hint');
+    await settle();
+    const tAfterHint = actor.st.turnStartedAt;
+    actorRoleBtn.click(); await sleep(80);
+
+    const ownCard = actor.st.cards.map((c, i) => ({ ...c, i })).find((c) => c.team === curTeam && !c.revealed);
+    await actor.ev(`rpc('reveal_card', { p_code: '${roomCode}', p_team: '${curTeam}', p_index: ${ownCard.i} })`);
+    await settle();
+
+    check('timer: card reveal does not reset timerStarted', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
+    check('timer: card reveal within same turn preserves turnStartedAt', pHost.st.turnStartedAt === tAfterHint);
+
     // Now test role reset at start of next round
     // Both become spymasters
     pHost.click('role-toggle-btn'); await sleep(80);

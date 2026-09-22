@@ -30,23 +30,55 @@ A real-time multiplayer word-guessing game in the spirit of **Codenames**, for 2
 
 ## 🛠️ Setup
 
-### 1. Supabase
+### 1. Supabase Setup & Connecting a Database
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste the contents of [`sql/schema.sql`](sql/schema.sql) and run it.
 
-That's all. The script **drops and recreates the `games` table**, so run it on a fresh project (or one where you don't need old games). It also enables row-level security, adds the table to the Realtime publication and creates the rule-enforcing functions (`reveal_card`, `give_hint`, `end_turn`, `send_chat`, `restart_game`).
+The script creates the `games` table, enables row-level security, adds the table to the Realtime publication, and defines all server-side RPC functions (`reveal_card`, `reveal_cards_batch`, `give_hint`, `end_turn`, `timeout_turn`, `send_chat`, `restart_game`, `start_timer`).
 
-The anon key in `script.js` is public by design. It is safe only because row-level security is on and every change to a game goes through those functions: the browser can create and read games but cannot `UPDATE` them directly.
+The anon key in `script.js` is public by design and safe to commit because row-level security is enabled and every state mutation goes through server-side Postgres functions.
 
-### 2. Frontend configuration
+### 2. Disconnecting or Switching Database Services
 
-Open `script.js` and replace the two values at the top with your project's URL and anon key:
+#### Option A: Switching to a New Supabase Project (Recommended)
+1. In your new Supabase project dashboard:
+   - Run [`sql/schema.sql`](sql/schema.sql) in the **SQL Editor**.
+   - Navigate to **Project Settings → API**.
+   - Copy the **Project URL** and the **`anon` `public` key**.
+2. Open [`script.js`](script.js) and update the two constants at lines 2–3:
+   ```javascript
+   const SUPABASE_URL = 'https://YOUR_NEW_PROJECT.supabase.co';
+   const SUPABASE_ANON_KEY = 'YOUR_NEW_ANON_KEY';
+   ```
+3. Commit and push your changes to GitHub / Vercel.
 
+#### Option B: Disconnecting the Current Database Completely
+To disconnect without immediately connecting another:
+In [`script.js`](script.js), set placeholder values:
 ```javascript
-const SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
 ```
+The client will gracefully display a connection retry/failure screen in the UI instead of crashing.
+
+#### Option C: Migrating to Another Database Service (Firebase, Neon, PocketBase, or Custom Backend)
+This game architecture relies on three real-time capabilities provided out-of-the-box by Supabase:
+1. **Realtime Broadcast / WebSocket sync**: Realtime push when a room row updates.
+2. **Presence tracking**: Live player roster and Spymaster assignment.
+3. **Server-enforced logic (RPCs)**: Moves, turns, hints, and timers validated server-side without a custom Node.js backend.
+
+If you wish to migrate to an alternative backend service:
+- **Firebase (Firestore + Realtime Database)**:
+  - Replace `@supabase/supabase-js` with Firebase JS SDK in `index.html`.
+  - Port Postgres functions in `sql/schema.sql` to **Firebase Cloud Functions** (or Firebase Security Rules + transactions).
+  - Use Firebase Presence (`.info/connected`) for roster tracking.
+- **Self-Hosted PostgreSQL / Neon**:
+  - You can run the exact `sql/schema.sql` on any Postgres instance.
+  - To expose real-time WebSockets and PostgREST to the static browser, run [PostgREST](https://postgrest.org) and [Supabase Realtime server](https://github.com/supabase/realtime) or a small Node.js WebSocket gateway.
+- **Node.js / Express + Socket.io**:
+  - Replace client `db.rpc(...)` calls in `script.js` with `socket.emit(...)` / `fetch(...)` endpoints.
+  - Port the game state machine in `sql/schema.sql` to JavaScript in your Node server.
 
 ### 3. Run locally
 
