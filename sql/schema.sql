@@ -160,6 +160,10 @@ begin
     end if;
   end if;
 
+  if g.turn <> old_turn then
+    g.turn_started_at := now();
+  end if;
+
   update games set
     board_cards = g.board_cards, cards_left = g.cards_left, turn = g.turn,
     guesses_remaining = g.guesses_remaining, eliminated = g.eliminated, chat_log = g.chat_log,
@@ -231,6 +235,10 @@ begin
     end if;
   else
     g := advance_turn_cycle(g);
+  end if;
+
+  if g.turn <> old_turn then
+    g.turn_started_at := now();
   end if;
 
   update games set

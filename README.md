@@ -41,46 +41,79 @@ The anon key in `script.js` is public by design and safe to commit because row-l
 
 ### 2. Disconnecting or Switching Database Services
 
-#### Option A: Switching to a New Supabase Project (Recommended)
-1. In your new Supabase project dashboard:
-   - Run [`sql/schema.sql`](sql/schema.sql) in the **SQL Editor**.
-   - Navigate to **Project Settings → API**.
-   - Copy the **Project URL** and the **`anon` `public` key**.
-2. Open [`script.js`](script.js) and update the two constants at lines 2–3:
+The frontend connects directly to Supabase via `@supabase/supabase-js` using the constants at the top of [`script.js`](script.js#L1-L6).
+
+#### Step 1: Disconnecting the Current Database
+To disconnect from the current database (`qarkceigmiwpmborlvbe.supabase.co`):
+1. Open [`script.js`](script.js).
+2. At lines 2–3, replace the existing credentials with empty strings or your new configuration:
    ```javascript
-   const SUPABASE_URL = 'https://YOUR_NEW_PROJECT.supabase.co';
-   const SUPABASE_ANON_KEY = 'YOUR_NEW_ANON_KEY';
+   // REPLACE THESE WITH YOUR SUPABASE DETAILS
+   const SUPABASE_URL = '';
+   const SUPABASE_ANON_KEY = '';
    ```
-3. Commit and push your changes to GitHub / Vercel.
+3. When disconnected, the client will display a graceful connection retry / offline banner in the UI without crashing.
 
-#### Option B: Disconnecting the Current Database Completely
-To disconnect without immediately connecting another:
-In [`script.js`](script.js), set placeholder values:
-```javascript
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
-```
-The client will gracefully display a connection retry/failure screen in the UI instead of crashing.
+---
 
-#### Option C: Migrating to Another Database Service (Firebase, Neon, PocketBase, or Custom Backend)
-This game architecture relies on three real-time capabilities provided out-of-the-box by Supabase:
-1. **Realtime Broadcast / WebSocket sync**: Realtime push when a room row updates.
-2. **Presence tracking**: Live player roster and Spymaster assignment.
-3. **Server-enforced logic (RPCs)**: Moves, turns, hints, and timers validated server-side without a custom Node.js backend.
+#### Step 2: Connecting to a New Supabase Project (Step-by-Step)
+1. **Create Project**: Go to [supabase.com](https://supabase.com) and create a new project.
+2. **Execute Schema**:
+   - Navigate to the **SQL Editor** tab in your Supabase dashboard.
+   - Click **New query**, paste the entire contents of [`sql/schema.sql`](sql/schema.sql), and click **Run**.
+   - Verify that the `games` table is created and all RPC functions (`reveal_card`, `start_timer`, etc.) are compiled.
+3. **Verify Realtime Replication**:
+   - Under **Database → Publications**, ensure `games` is included in the `supabase_realtime` publication (this is configured automatically by `schema.sql`).
+4. **Copy API Keys**:
+   - Go to **Project Settings → API**.
+   - Copy the **Project URL** (e.g. `https://xyzcompany.supabase.co`).
+   - Copy the **`anon` `public` key**.
+5. **Update Client Config**:
+   - Open [`script.js`](script.js) and paste your credentials:
+     ```javascript
+     const SUPABASE_URL = 'https://YOUR_NEW_PROJECT.supabase.co';
+     const SUPABASE_ANON_KEY = 'YOUR_NEW_ANON_KEY';
+     ```
+6. **Deploy or Run**: Commit your changes or run locally with `python -m http.server 8000`.
 
-If you wish to migrate to an alternative backend service:
-- **Firebase (Firestore + Realtime Database)**:
-  - Replace `@supabase/supabase-js` with Firebase JS SDK in `index.html`.
-  - Port Postgres functions in `sql/schema.sql` to **Firebase Cloud Functions** (or Firebase Security Rules + transactions).
-  - Use Firebase Presence (`.info/connected`) for roster tracking.
+---
+
+#### Step 3: Migrating to Alternative Backend Services
+If you prefer not to use Supabase, this application can be adapted to any backend meeting three fundamental architectural requirements:
+
+| Backend Requirement | How Supabase Handles It | Migration Strategy for Other Platforms |
+| :--- | :--- | :--- |
+| **1. Realtime Pub/Sub** | `supabase_realtime` postgres changes channel | Push game state updates to all players in a room whenever the board or chat updates. |
+| **2. Live Presence** | `channel.track()` and presence state | Track connected players per room, display the active roster, and coordinate Spymaster assignments. |
+| **3. Server-Enforced Rules** | Postgres stored functions (`rpc`) | Atomic state validation (turns, valid hints, card reveals, assassin elimination, win conditions). |
+
+##### Alternative Service Options:
+- **Firebase (Firestore + Realtime Database / Cloud Functions)**:
+  - Replace `@supabase/supabase-js` with the Firebase SDK in `index.html`.
+  - Store room documents in **Firestore** and listen with `onSnapshot()`.
+  - Port Postgres functions in `sql/schema.sql` to **Firebase Cloud Functions** (HTTP callables or Firestore transactions) to preserve server-side validation.
+  - Use **Firebase Realtime Database Presence** (`.info/connected`) for the player roster.
+- **PocketBase (Go / SQLite)**:
+  - Create a `games` collection with real-time subscriptions (`pb.collection('games').subscribe(...)`).
+  - Implement custom PocketBase Go/JS route hooks to validate game actions (`reveal_card`, `start_timer`, etc.) before persisting.
 - **Self-Hosted PostgreSQL / Neon**:
-  - You can run the exact `sql/schema.sql` on any Postgres instance.
-  - To expose real-time WebSockets and PostgREST to the static browser, run [PostgREST](https://postgrest.org) and [Supabase Realtime server](https://github.com/supabase/realtime) or a small Node.js WebSocket gateway.
-- **Node.js / Express + Socket.io**:
-  - Replace client `db.rpc(...)` calls in `script.js` with `socket.emit(...)` / `fetch(...)` endpoints.
-  - Port the game state machine in `sql/schema.sql` to JavaScript in your Node server.
+  - Run [`sql/schema.sql`](sql/schema.sql) on any standard PostgreSQL instance.
+  - Expose PostgREST and the open-source Supabase Realtime Server, or front it with a lightweight WebSocket gateway.
+- **Custom Node.js / Bun WebSocket Server (Socket.io / ws)**:
+  - Maintain room state in-memory or in Redis.
+  - Replace `db.rpc(...)` calls in `script.js` with `socket.emit(...)`.
+  - Handle player join/leave and roster events directly over WebSockets.
 
-### 3. Run locally
+---
+
+### 3. Turn Timer & Host Controls
+- In timed games (configured during room creation), the room creator (host) has a **▶ Start Timer** button.
+- Guests see **⏳ Waiting for host to start**.
+- Once the host starts the timer, a synchronized turn clock runs for all clients in the room.
+- If the server has an older schema without the `start_timer` RPC, the client automatically falls back to an in-band system chat broadcast (`Timer started!`), ensuring host and guests stay completely in sync.
+- Chat messages and card reveals within the current turn do not reset the timer or its elapsed duration.
+
+### 4. Run locally
 
 ```bash
 python -m http.server 8000
@@ -88,11 +121,11 @@ python -m http.server 8000
 
 Then open `http://localhost:8000`.
 
-### 4. Deploy to GitHub Pages
+### 5. Deploy to GitHub Pages
 
 Repository **Settings → Pages**, branch `main`, folder `/ (root)`. The game is static, so nothing else is needed.
 
-### 5. Deploy to Vercel
+### 6. Deploy to Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FThe-AlphaWolf%2FCodeNames)
 
@@ -105,7 +138,6 @@ Repository **Settings → Pages**, branch `main`, folder `/ (root)`. The game is
 ## ⚠️ Limitations
 
 - **Identity is honor-system.** The browser tells the server which team and role it is. The server enforces the rules of the game (whose turn, how many guesses, valid hints), not who you are. A guesser who opens the developer tools can read the card colours. That is fine for a game among friends, not for a tournament.
-- There is no turn timer.
 
 ## 🧪 Tests
 

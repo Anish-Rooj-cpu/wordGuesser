@@ -341,8 +341,32 @@ body {
     box-shadow: 0 0 12px var(--tc-glow, transparent);
 }
 
-.turn-timer { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.turn-timer.low { color: #ff6b6b; }
+.turn-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--surface-2, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    font-weight: 700;
+    font-size: 0.88rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.turn-timer.low {
+    color: #ff6b6b;
+    border-color: rgba(255, 107, 107, 0.4);
+    background: rgba(255, 107, 107, 0.12);
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
+    animation: pulse-low 1s infinite alternate;
+}
+@keyframes pulse-low {
+    from { opacity: 0.9; }
+    to { opacity: 1; }
+}
 
 /* ── Game Body (Board + Chat) ────────────────── */
 .game-body {

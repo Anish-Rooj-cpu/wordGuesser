@@ -28,7 +28,7 @@ const firePresence = (name) => channels.forEach((ch) => {
     if (ch.name === name) ch.handlers.filter((h) => h.type === 'presence').forEach((h) => h.cb());
 });
 
-const net = { offline: new Set(), failSubscribe: new Set(), subscribes: {}, hook: null, delay: null }; // per-owner outage switch + subscribe attempt counter
+const net = { offline: new Set(), failSubscribe: new Set(), subscribes: {}, hook: null, delay: null, failRpc: null }; // per-owner outage switch + subscribe attempt counter
 let SCALE = 1; // >1 shrinks every page timer (backoff tests)
 const offlineErr = { data: null, error: { message: 'offline' } };
 
@@ -46,6 +46,9 @@ function makeClient(owner) {
         },
         rpc: async (name, args) => {
             if (net.offline.has(owner)) return offlineErr;
+            if (net.failRpc && net.failRpc.name === name) {
+                return { data: null, error: { message: `function ${name} does not exist`, code: 'PGRST202' } };
+            }
             const r = await be.rpc(name, args);
             const h = net.hook && net.hook.owner === owner && net.hook.name === name && r.data ? net.hook : null;
             if (h) { // connection dies exactly as this RPC resolves: server applied it, this client's channel is gone for the echo
@@ -1186,6 +1189,85 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('end-of-round: confetti called for Red player', pRed.w.confettiCalls > 0);
     check('end-of-round: confetti called for Blue player', pBlue.w.confettiCalls > 0);
     check('end-of-round: NO confetti for Green player', pGreen.w.confettiCalls === 0);
+}
+
+// ═════════ Timer fallback resiliency & synchronous countdown ═════════
+{
+    console.log('\n[timer fallback resiliency & synchronization]');
+    const pHost = mkPlayer('TimerHost');
+    pHost.val('create-name', 'TimerHost');
+    pHost.val('create-teams', '2');
+    pHost.doc.getElementById('create-teams').dispatchEvent(new pHost.w.Event('change'));
+    pHost.val('create-team', 'red');
+    pHost.val('create-timer', '60');
+    pHost.click('create-btn');
+    await sleep(150);
+
+    const roomCode = pHost.st.code;
+    const pGuest = mkPlayer('TimerGuest');
+    pGuest.val('join-name', 'TimerGuest');
+    pGuest.val('join-id', roomCode);
+    pGuest.val('join-team', 'blue');
+    pGuest.click('join-btn');
+    await sleep(150);
+
+    check('fallback-timer: initial timerStarted is false on both', pHost.st.timerStarted === false && pGuest.st.timerStarted === false);
+    check('fallback-timer: timer badges visible and show 1:00', pHost.txt('turn-timer').includes('1:00') && pGuest.txt('turn-timer').includes('1:00'));
+
+    // Simulate start_timer RPC failing on the database (e.g. PGRST202 schema missing start_timer)
+    net.failRpc = { name: 'start_timer' };
+
+    // Host clicks Start Timer button
+    const hostStartBtn = pHost.doc.getElementById('start-timer-btn');
+    hostStartBtn.click();
+    await settle();
+
+    // Clear simulated failure
+    net.failRpc = null;
+
+    // Verify host and guest both have timerStarted = true via the send_chat fallback
+    check('fallback-timer: host timerStarted is true via fallback', pHost.st.timerStarted === true);
+    check('fallback-timer: guest received timerStarted = true via chat fallback', pGuest.st.timerStarted === true);
+    check('fallback-timer: start buttons hidden on both', pHost.doc.getElementById('start-timer-btn').classList.contains('hidden') && pGuest.doc.getElementById('start-timer-btn').classList.contains('hidden'));
+
+    // Verify synchronous countdown: both host and guest tickTimer evaluate identically
+    pHost.ev('tickTimer()');
+    pGuest.ev('tickTimer()');
+    const hostTimerTxt = pHost.txt('turn-timer');
+    const guestTimerTxt = pGuest.txt('turn-timer');
+    check('fallback-timer: timer countdown ticks synchronously on host and guest', hostTimerTxt === guestTimerTxt, `host=${hostTimerTxt}, guest=${guestTimerTxt}`);
+
+    // Verify chat does NOT reset timerStarted or turnStartedAt
+    const tHostBeforeChat = pHost.st.turnStartedAt;
+    const tGuestBeforeChat = pGuest.st.turnStartedAt;
+    pGuest.val('chat-text', 'Guest chat message');
+    pGuest.click('submit-chat');
+    await settle();
+
+    check('fallback-timer: chat does not reset timerStarted on host or guest', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
+    check('fallback-timer: chat does not reset turnStartedAt on host', pHost.st.turnStartedAt === tHostBeforeChat);
+    check('fallback-timer: chat does not reset turnStartedAt on guest', pGuest.st.turnStartedAt === tGuestBeforeChat);
+
+    // Verify card selection does NOT reset timer
+    const curTeam = pHost.st.turn;
+    const activePlayer = curTeam === pHost.st.myTeam ? pHost : pGuest;
+    const otherPlayer = activePlayer === pHost ? pGuest : pHost;
+
+    activePlayer.click('role-toggle-btn'); await sleep(80);
+    activePlayer.val('hint-word', 'TESTING');
+    activePlayer.val('hint-number', '2');
+    activePlayer.click('submit-hint');
+    await settle();
+
+    activePlayer.click('role-toggle-btn'); await sleep(80);
+
+    const tAfterHint = activePlayer.st.turnStartedAt;
+    const ownCard = activePlayer.st.cards.map((c, i) => ({ ...c, i })).find((c) => c.team === curTeam && !c.revealed);
+    await activePlayer.ev(`rpc('reveal_card', { p_code: '${roomCode}', p_team: '${curTeam}', p_index: ${ownCard.i} })`);
+    await settle();
+
+    check('fallback-timer: card reveal does not reset timerStarted', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
+    check('fallback-timer: card reveal does not reset turnStartedAt', activePlayer.st.turnStartedAt === tAfterHint && otherPlayer.st.turnStartedAt === tAfterHint);
 }
 
 // ═════════ error log ═════════

@@ -419,30 +419,35 @@ function syncStateWithDB(row) {
     seen = { sig: boardSig(row), rank: stateRank(row), at: stamp(row) || 0 };
     const prevTurn = gameState.turn;
 
-    let timerStarted = row.timer_started;
-    if (timerStarted === undefined || timerStarted === null) {
-        if ((row.turn_seconds || 0) === 0) {
-            timerStarted = true;
-        } else if (Array.isArray(row.chat_log) && row.chat_log.some((m) => m && (m.type === 'timer_start' || (typeof m.text === 'string' && m.text.includes('Timer started'))))) {
-            timerStarted = true;
-        } else if (!isRestart && gameState.timerStarted) {
-            timerStarted = true;
-        } else {
-            timerStarted = false;
-        }
-    } else if (timerStarted === false && !isRestart && gameState.timerStarted) {
-        if (Array.isArray(row.chat_log) && row.chat_log.some((m) => m && (m.type === 'timer_start' || (typeof m.text === 'string' && m.text.includes('Timer started'))))) {
-            timerStarted = true;
-        }
+    // Check if chat log has a timer start notification (system or chat fallback)
+    const hasTimerChat = Array.isArray(row.chat_log) && row.chat_log.some((m) =>
+        m && (m.type === 'timer_start' || (typeof m.text === 'string' && m.text.toLowerCase().includes('timer started')))
+    );
+
+    let timerStarted = false;
+    if ((row.turn_seconds || 0) === 0) {
+        timerStarted = true;
+    } else if (isRestart) {
+        timerStarted = !!row.timer_started;
+    } else if (gameState.timerStarted) {
+        // Once started for this round, do not revert to false on chats or card clicks
+        timerStarted = true;
+    } else if (row.timer_started || hasTimerChat) {
+        timerStarted = true;
+    } else {
+        timerStarted = false;
     }
 
     const turnChanged = !!prevTurn && prevTurn !== row.turn;
+    const justStartedViaFallback = !gameState.timerStarted && timerStarted && !row.timer_started;
     let turnStartedAt = gameState.turnStartedAt;
-    if (!turnStartedAt || turnChanged || isRestart) {
-        turnStartedAt = row.turn_started_at ? new Date(row.turn_started_at).getTime() : Date.now();
+    if (!turnStartedAt || turnChanged || isRestart || justStartedViaFallback) {
+        turnStartedAt = row.turn_started_at && !justStartedViaFallback ? new Date(row.turn_started_at).getTime() : Date.now();
     } else if (row.turn_started_at) {
         const sTime = new Date(row.turn_started_at).getTime();
-        if (!isNaN(sTime)) turnStartedAt = sTime;
+        if (!isNaN(sTime) && sTime > turnStartedAt) {
+            turnStartedAt = sTime;
+        }
     }
 
     Object.assign(gameState, {
@@ -496,7 +501,7 @@ let timeoutCallAt = 0;
 function tickTimer() {
     const el = $('turn-timer'), g = gameState;
     if (!el) return;
-    const on = g.turnSeconds > 0 && !g.gameOver && !!channel;
+    const on = g.turnSeconds > 0 && !g.gameOver && !!g.code;
     el.classList.toggle('hidden', !on);
     if (!on) return;
     if (!g.timerStarted) {
@@ -732,26 +737,30 @@ async function handleStartTimerClick() {
     startTimerBtn.disabled = true;
     startTimerBtn.textContent = 'Starting...';
     try {
-        const res = await rpc('start_timer', { p_code: gameState.code });
-        if (!res) {
+        const { data, error } = await db.rpc('start_timer', { p_code: gameState.code });
+        if (!error && data) {
+            syncStateWithDB(data);
+        } else {
             // Fallback for older database schemas that lack start_timer RPC:
             // Send a system message via send_chat so the start is recorded in chat_log on the server
             // and broadcast to all clients in the room via Realtime.
             const chatRes = await rpc('send_chat', {
                 p_code: gameState.code,
                 p_team: gameState.myTeam,
-                p_name: gameState.myName || 'Host',
+                p_name: 'System',
                 p_text: 'Timer started!'
             });
             if (chatRes) {
                 gameState.timerStarted = true;
-                gameState.turnStartedAt = Date.now();
+                if (!gameState.turnStartedAt) gameState.turnStartedAt = Date.now();
                 updateUI();
                 tickTimer();
             } else {
                 showToast('Could not start timer on server. Please check database permissions or schema.');
             }
         }
+    } catch (e) {
+        showToast('Could not start timer: ' + (e?.message || e));
     } finally {
         startTimerBtn.disabled = false;
         updateStartTimerControl();
