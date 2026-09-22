@@ -24,12 +24,42 @@ create table games (
   updated_at        timestamptz not null default now()
 );
 
+create index if not exists idx_games_updated_at on games (updated_at);
+
 alter table games enable row level security;
 create policy "anon read"   on games for select to anon using (true);
 create policy "anon insert" on games for insert to anon with check (true);
 -- Intentionally no update/delete policy: all mutations go through the functions below.
 
 alter publication supabase_realtime add table games;
+
+-- ---------- automatic cleanup of stale games ----------
+-- Automatically purges games inactive for over 24 hours whenever a new game is created.
+create or replace function cleanup_stale_games()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  delete from games where updated_at < now() - interval '24 hours';
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_cleanup_stale_games on games;
+create trigger trg_cleanup_stale_games
+  before insert on games
+  for each statement
+  execute function cleanup_stale_games();
+
+-- Standalone purge function (can be called via RPC, manual SQL, or pg_cron)
+create or replace function purge_old_games(p_hours int default 24)
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  deleted_count int;
+begin
+  delete from games where updated_at < now() - (p_hours || ' hours')::interval;
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
 
 -- ---------- helpers ----------
 -- Next non-eliminated team after p_turn, in fixed order red→blue→green→cyan (wrapping).
@@ -391,4 +421,4 @@ revoke all on table games from anon;
 grant select, insert on table games to anon;
 grant execute on function next_team(text,int,text[]), remaining_teams(int,text[]), derive_cards_left(jsonb),
   reveal_card(text,text,int), reveal_cards_batch(text,text,int[]), give_hint(text,text,text,int), end_turn(text,text), timeout_turn(text),
-  send_chat(text,text,text,text), restart_game(text,jsonb,text), start_timer(text) to anon;
+  send_chat(text,text,text,text), restart_game(text,jsonb,text), start_timer(text), purge_old_games(int) to anon;

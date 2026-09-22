@@ -1417,6 +1417,47 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('scramble: card element has style.order set', firstCard.style.order === String(expectedOrder));
 }
 
+// ═════════ Auto-cleanup & Purge Stale Games ═════════
+{
+    console.log('\n[auto-cleanup & purge stale games]');
+    const staleCode1 = 'OLDGM1';
+    const staleCode2 = 'OLDGM2';
+
+    // Insert a stale game updated 30 hours ago
+    await be.pg.query(`
+        insert into games (game_code, teams, grid, board_cards, cards_left, turn, updated_at)
+        values ($1, 2, 5, '[]'::jsonb, '{}'::jsonb, 'red', now() - interval '30 hours')
+    `, [staleCode1]);
+
+    const beforePurge = await be.select(staleCode1);
+    check('cleanup: stale game exists before purge', beforePurge.data !== null);
+
+    // Call purge_old_games RPC
+    const purgeRes = await be.rpc('purge_old_games', { p_hours: 24 });
+    const count = typeof purgeRes.data === 'object' && purgeRes.data !== null ? purgeRes.data.purge_old_games : purgeRes.data;
+    check('cleanup: purge_old_games RPC executed successfully', count >= 1);
+
+    const afterPurge = await be.select(staleCode1);
+    check('cleanup: stale game deleted by purge_old_games', afterPurge.data === null);
+
+    // Test automatic trigger on new game creation
+    await be.pg.query(`
+        insert into games (game_code, teams, grid, board_cards, cards_left, turn, updated_at)
+        values ($1, 2, 5, '[]'::jsonb, '{}'::jsonb, 'red', now() - interval '30 hours')
+    `, [staleCode2]);
+
+    const beforeTrigger = await be.select(staleCode2);
+    check('cleanup: second stale game exists before create', beforeTrigger.data !== null);
+
+    // Creating a new game invokes `insert into games`, which fires trg_cleanup_stale_games
+    const pFresh = await create('fresh-cleaner', 2, 'red', 'guesser');
+    await settle();
+
+    const afterTrigger = await be.select(staleCode2);
+    check('cleanup: trg_cleanup_stale_games automatically purged stale game on game creation', afterTrigger.data === null);
+    check('cleanup: newly created game is present and active', pFresh.st.code.length === 6);
+}
+
 // ═════════ error log ═════════
 console.log(`\nJS/console errors captured: ${errors.length}`);
 errors.slice(0, 10).forEach((e) => console.log('  ', e));
