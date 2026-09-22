@@ -49,6 +49,7 @@
                         <label for="create-mode">Game Mode</label>
                         <select id="create-mode">
                             <option value="normal" selected>Normal Mode</option>
+                            <option value="easy">Easy Mode (Related Words)</option>
                             <option value="suspense">Suspense Mode</option>
                         </select>
                     </div>
@@ -136,6 +137,21 @@
 
         <!-- Board + Sidebar -->
         <div class="game-body">
+            <!-- Spymaster Lounge (Desktop only, Spymaster role only) -->
+            <aside class="spymaster-panel hidden" id="spymaster-panel" aria-label="Spymaster channel">
+                <div class="spymaster-panel-header">
+                    <span class="spymaster-icon" aria-hidden="true">🕵️</span>
+                    <h2>Spymaster Lounge</h2>
+                </div>
+                <p class="spymaster-panel-sub">Encrypted desktop channel for Spymasters</p>
+                <div class="spymaster-chat-log" id="spymaster-chat-log" role="log" aria-label="Spymaster chat"></div>
+                <form class="spymaster-chat-form" id="spymaster-chat-form">
+                    <label class="sr-only" for="spymaster-chat-input">Message Spymasters</label>
+                    <input type="text" id="spymaster-chat-input" placeholder="Message Spymasters…" maxlength="150" autocomplete="off">
+                    <button type="submit" class="btn btn-secondary btn-small" id="spymaster-chat-send">Send</button>
+                </form>
+            </aside>
+
             <div class="board-area" role="main">
                 <div id="board" class="board" role="group" aria-label="Word board" tabindex="-1"></div>
                 <div id="suspense-controls" class="suspense-bar hidden" role="toolbar" aria-label="Suspense mode guess submission">

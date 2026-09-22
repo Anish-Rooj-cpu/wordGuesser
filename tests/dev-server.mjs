@@ -55,6 +55,10 @@ http.createServer(async (req, res) => {
             broadcast(b.room, 'presence', presenceState(b.room));
             return json({});
         }
+        if (u.pathname === '/api/broadcast') {
+            broadcast(b.room, 'broadcast', { event: b.event, payload: b.payload });
+            return json({});
+        }
     }
 
     // static; index.html is rewritten in flight so the fake client replaces supabase-js (file on disk untouched)

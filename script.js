@@ -159,7 +159,7 @@ async function createGame() {
     const gameMode = createModeSelect ? createModeSelect.value : 'normal';
     const team = createTeamSelect.value, role = 'guesser';
     const turnSeconds = parseInt($('create-timer').value, 10) || 0;
-    const cards = generateBoard(teams);
+    const cards = generateBoard(teams, words, gameMode);
     const cardsLeft = {};
     cards.forEach((c) => { if (c.team !== 'neutral' && c.team !== 'black') cardsLeft[c.team] = (cardsLeft[c.team] || 0) + 1; });
     const turn = TEAMS[Math.floor(Math.random() * teams)];
@@ -220,6 +220,8 @@ function subscribeToRoom(code) {
             .on('presence', { event: 'sync' }, renderRoster)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `game_code=eq.${code}` },
                 (payload) => syncStateWithDB(payload.new))
+            .on('broadcast', { event: 'spymaster_chat' }, ({ payload }) => handleSpymasterChat(payload))
+            .on('broadcast', { event: 'guesser_select' }, ({ payload }) => handleGuesserSelect(payload))
             .subscribe((status) => {
                 if (ch !== channel) return; // replaced or left: ignore the CLOSED that removeChannel emits
                 if (status === 'SUBSCRIBED') { up = true; resolve(); }
@@ -331,6 +333,8 @@ async function enterGame(row, { name, team, role, isHost = false }) {
         document.body.classList.toggle('spymaster', role === 'spymaster');
         hintControls.classList.toggle('hidden', role !== 'spymaster');
         chatControls.classList.toggle('hidden', role === 'spymaster');
+        const spyPanel = $('spymaster-panel');
+        if (spyPanel) spyPanel.classList.toggle('hidden', role !== 'spymaster');
         gameOverModal.classList.add('hidden');
 
         scoreboardEl.replaceChildren();
@@ -384,6 +388,10 @@ async function leaveGame() {
     selectedCards.clear();
     updateSuspenseControls();
     updateStartTimerControl();
+    const spyPanelLeave = $('spymaster-panel');
+    if (spyPanelLeave) spyPanelLeave.classList.add('hidden');
+    const spyLogLeave = $('spymaster-chat-log');
+    if (spyLogLeave) spyLogLeave.replaceChildren();
     swapScreens(false);
     gameOverOpener = null;
     gameOverModal.classList.add('hidden');
@@ -534,6 +542,9 @@ function renderBoard() {
     const isSuspense = gameState.gameMode === 'suspense';
     boardEl.style.setProperty('--cols', gameState.grid);
     boardEl.dataset.grid = gameState.grid;
+    const scramble = typeof getVisualScramble === 'function'
+        ? getVisualScramble(gameState.code, gameState.myTeam, gameState.cards.length)
+        : [];
     boardEl.replaceChildren(...gameState.cards.map((raw, i) => {
         const card = isEntry(raw) ? raw : {}; // a malformed card renders blank instead of throwing
         const word = typeof card.word === 'string' ? card.word : '';
@@ -541,6 +552,7 @@ function renderBoard() {
         const el = document.createElement('button');
         el.type = 'button';
         el.className = 'card';
+        if (scramble[i] !== undefined) el.style.order = scramble[i];
         if (team) el.dataset.team = team; // honor-system: visible in devtools (see README, Step 8)
         el.textContent = word;
         // colour is spoken for revealed cards and for the spymaster, who already sees it
@@ -792,6 +804,8 @@ function setRole(role) {
     document.body.classList.toggle('spymaster', role === 'spymaster');
     hintControls.classList.toggle('hidden', role !== 'spymaster');
     chatControls.classList.toggle('hidden', role === 'spymaster');
+    const spyPanelRole = $('spymaster-panel');
+    if (spyPanelRole) spyPanelRole.classList.toggle('hidden', role !== 'spymaster');
     if (channel) {
         channel.track({ name: gameState.myName, team: gameState.myTeam, role: gameState.myRole });
     }
@@ -858,7 +872,11 @@ function handleCardClick(i) {
     if (g.gameOver || g.myRole !== 'guesser' || g.myTeam !== g.turn || g.guessesRemaining <= 0
         || g.cards[i]?.revealed || g.eliminated.includes(g.myTeam)) return;
 
+    const card = g.cards[i];
+    const word = card ? card.word : '';
+
     if (g.gameMode === 'suspense') {
+        const willSelect = !selectedCards.has(i);
         if (selectedCards.has(i)) {
             selectedCards.delete(i);
         } else {
@@ -868,12 +886,62 @@ function handleCardClick(i) {
             }
             selectedCards.add(i);
         }
+        broadcastGuesserSelect(word, i, willSelect);
         renderBoard();
         updateSuspenseControls();
         return;
     }
 
+    broadcastGuesserSelect(word, i, true);
     rpc('reveal_card', { p_code: g.code, p_team: g.myTeam, p_index: i });
+}
+
+function broadcastGuesserSelect(word, index, selected = true) {
+    if (!word) return;
+    const payload = {
+        name: gameState.myName,
+        team: gameState.myTeam,
+        word,
+        index,
+        selected
+    };
+    handleGuesserSelect(payload);
+    if (channel) {
+        try {
+            channel.send({
+                type: 'broadcast',
+                event: 'guesser_select',
+                payload
+            });
+        } catch (e) {}
+    }
+}
+
+function handleGuesserSelect(payload) {
+    if (!payload || !payload.word || !chatLogEl) return;
+    const div = document.createElement('div');
+    div.className = 'hint-msg selection';
+    if (TEAMS.includes(payload.team)) div.dataset.team = payload.team;
+    const act = payload.selected ? 'selected' : 'deselected';
+    div.innerHTML = `🎯 <strong>${escapeHtml(payload.name || 'Guesser')}</strong> (${teamLabel(payload.team)}) ${act} <strong>${escapeHtml(payload.word)}</strong>`;
+    chatLogEl.appendChild(div);
+    chatLogEl.scrollTop = chatLogEl.scrollHeight;
+}
+
+function handleSpymasterChat(payload) {
+    if (gameState.myRole !== 'spymaster' || !payload || !payload.text) return;
+    appendSpymasterMsg(payload.name, payload.team, payload.text);
+}
+
+function appendSpymasterMsg(name, team, text) {
+    const log = $('spymaster-chat-log');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = 'spymaster-msg';
+    if (TEAMS.includes(team)) div.dataset.team = team;
+    div.innerHTML = `<strong>${escapeHtml(name || 'Spymaster')} (${teamLabel(team)}):</strong> ${escapeHtml(text)}`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
 }
 
 function updateSuspenseControls() {
@@ -955,11 +1023,11 @@ async function playAgain() {
         const startTeam = TEAMS[Math.floor(Math.random() * gameState.teams)];
         const res = await rpc('restart_game', {
             p_code: gameState.code,
-            p_cards: generateBoard(gameState.teams),
+            p_cards: generateBoard(gameState.teams, words, gameState.gameMode || 'normal'),
             p_start_team: startTeam
         });
         if (!res) {
-            await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams) });
+            await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams, words, gameState.gameMode || 'normal') });
         }
     } finally {
         playAgainBtn.disabled = false;
@@ -996,6 +1064,28 @@ submitChatBtn.addEventListener('click', submitChat);
 [[hintWordInput, submitHint], [hintNumberInput, submitHint], [chatTextInput, submitChat]].forEach(([el, fn]) =>
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') fn(); }));
 playAgainBtn.addEventListener('click', playAgain);
+const spyChatForm = $('spymaster-chat-form');
+const spyChatInput = $('spymaster-chat-input');
+if (spyChatForm && spyChatInput) {
+    spyChatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (gameState.myRole !== 'spymaster') return;
+        const text = spyChatInput.value.trim().slice(0, 150);
+        if (!text) return;
+        spyChatInput.value = '';
+        const payload = { name: gameState.myName, team: gameState.myTeam, text };
+        appendSpymasterMsg(payload.name, payload.team, payload.text);
+        if (channel) {
+            try {
+                channel.send({
+                    type: 'broadcast',
+                    event: 'spymaster_chat',
+                    payload
+                });
+            } catch (err) {}
+        }
+    });
+}
 returnLobbyBtn.addEventListener('click', leaveGame);
 connectRetry.addEventListener('click', () => firstConnect(gameState.code));
 connectLeave.addEventListener('click', leaveGame);

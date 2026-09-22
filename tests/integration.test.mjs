@@ -71,6 +71,17 @@ function makeClient(owner) {
                     channels.add(ch); setTimeout(() => cb('SUBSCRIBED'), 0); return ch;
                 },
                 async track(p) { ch.presence = p; firePresence(name); },
+                send(msg) {
+                    if (msg?.type === 'broadcast') {
+                        channels.forEach((c) => {
+                            if (c.name === name) {
+                                c.handlers
+                                    .filter((h) => h.type === 'broadcast' && (!h.opts?.event || h.opts.event === msg.event))
+                                    .forEach((h) => setTimeout(() => h.cb({ event: msg.event, payload: msg.payload }), 0));
+                            }
+                        });
+                    }
+                },
                 presenceState() { const s = {}; channels.forEach((c) => { if (c.name === name && c.presence) s[c.key] = [c.presence]; }); return s; }
             };
             return ch;
@@ -204,8 +215,8 @@ let L = await create('red-spy', 2, 'red', 'spymaster').then(async (f) => {
 let st = s(L);
 const cnt = (t) => st.cards.filter((c) => c.team === t).length;
 check('2t: 25 cards, grid 5, 5 columns', st.cards.length === 25 && st.grid === 5 && L.all[0].doc.getElementById('board').style.getPropertyValue('--cols') === '5');
-check('2t: 1 black, 8 red, 8 blue, 8 neutral', cnt('black') === 1 && cnt('red') === 8 && cnt('blue') === 8 && cnt('neutral') === 8);
-check('2t: 2 scores of 8', L.all[0].doc.querySelectorAll('.score').length === 2 && [...L.all[0].doc.querySelectorAll('.score-n')].every((e) => e.textContent === '8'));
+check('2t: 1 black, 9 red, 9 blue, 6 neutral', cnt('black') === 1 && cnt('red') === 9 && cnt('blue') === 9 && cnt('neutral') === 6);
+check('2t: 2 scores of 9', L.all[0].doc.querySelectorAll('.score').length === 2 && [...L.all[0].doc.querySelectorAll('.score-n')].every((e) => e.textContent === '9'));
 check('2t: start team is red|blue, turn pill present', ['red', 'blue'].includes(st.turn) && L.all[0].txt('turn-indicator').includes("waiting for hint"));
 check('2t: spymaster body class + hint controls shown / chat hidden', L.P.red.spy.doc.body.classList.contains('spymaster') && !L.P.red.spy.hidden('hint-controls') && L.P.red.spy.hidden('chat-controls'));
 check('2t: guesser chat shown / hint hidden', !L.P.red.gu.hidden('chat-controls') && L.P.red.gu.hidden('hint-controls'));
@@ -222,7 +233,7 @@ check('chat: spymaster cannot send chat', !L.all[0].txt('chat-log').includes('bl
 const T0 = st.turn, O0 = nextOf(L, T0);
 // hint validation
 const before = s(L).chatLog.length;
-for (const [w, n, msg] of [['two words', 1, 'one word'], ['abcdefghijklmnop', 1, 'one word'], ['ZEPHYRIA', 0, 'Number must be'], ['ZEPHYRIA', 9, 'Number must be'], [s(L).cards.find((c) => !c.revealed).word, 1, 'on the board']]) {
+for (const [w, n, msg] of [['two words', 1, 'one word'], ['abcdefghijklmnop', 1, 'one word'], ['ZEPHYRIA', 0, 'Number must be'], ['ZEPHYRIA', 10, 'Number must be'], [s(L).cards.find((c) => !c.revealed).word, 1, 'on the board']]) {
     await hint(L, T0, w, n);
     check(`hint rejected: "${w}" / ${n}`, L.P[T0].spy.toast().includes(msg) && s(L).guessesRemaining === 0 && s(L).chatLog.length === before, L.P[T0].spy.toast());
 }
@@ -248,16 +259,16 @@ await reveal(L, O0, 0); check('non-turn guesser click ignored', s(L).cards.every
 L.P[T0].spy.card(0).click(); await settle(); check('spymaster card click ignored', s(L).cards.every((c) => !c.revealed));
 // own card: count -1, turn same
 let c = unrevealed(L, T0)[0]; await reveal(L, T0, c.i);
-check('own card: count 7, turn unchanged, 1 guess left', s(L).cardsLeft[T0] === 7 && s(L).turn === T0 && s(L).guessesRemaining === 1);
-check('scoreboard shows 7', L.all[0].doc.querySelector(`.score[data-team=${T0}] .score-n`).textContent === '7');
+check('own card: count 8, turn unchanged, 1 guess left', s(L).cardsLeft[T0] === 8 && s(L).turn === T0 && s(L).guessesRemaining === 1);
+check('scoreboard shows 8', L.all[0].doc.querySelector(`.score[data-team=${T0}] .score-n`).textContent === '8');
 // neutral: counts unchanged, guesses reaches 0 -> turn passes
 c = s(L).cards.map((x, i) => ({ ...x, i })).find((x) => x.team === 'neutral' && !x.revealed); await reveal(L, T0, c.i);
-check('neutral: turn passes when guesses reach 0, counts unchanged', s(L).turn === O0 && s(L).cardsLeft[T0] === 7 && s(L).cardsLeft[O0] === 8 && s(L).guessesRemaining === 0);
+check('neutral: turn passes when guesses reach 0, counts unchanged', s(L).turn === O0 && s(L).cardsLeft[T0] === 8 && s(L).cardsLeft[O0] === 9 && s(L).guessesRemaining === 0);
 
 // other team's card: decrement theirs, turn CONTINUES because guesses remaining > 0!
 await giveHintTo(L, O0, 2);
 c = unrevealed(L, T0)[0]; await reveal(L, O0, c.i);
-check("opponent's card: their count -1, turn continues, 1 guess left", s(L).cardsLeft[T0] === 6 && s(L).turn === O0 && s(L).guessesRemaining === 1);
+check("opponent's card: their count -1, turn continues, 1 guess left", s(L).cardsLeft[T0] === 7 && s(L).turn === O0 && s(L).guessesRemaining === 1);
 
 // End Turn button
 L.P[O0].gu.click('end-turn-btn'); await settle();
@@ -271,18 +282,23 @@ const order = await playToEnd(L, '2t');
 let okOrder = true; for (let i = 1; i < order.length; i++) if (order[i] === order[i - 1] && false) okOrder = false;
 st = s(L);
 const winner = st.winner;
-check('2t: game over with a winner', st.gameOver && ['red', 'blue'].includes(winner), winner);
-check('2t: winner has 0 cards left', st.cardsLeft[winner] === 0);
-check('2t: modal shown in all tabs with "<TEAM> TEAM WINS!"', L.all.every((p) => !p.hidden('game-over-modal') && p.txt('winner-text') === `${winner.toUpperCase()} TEAM WINS!`));
-check('2t: heading data-team=winner', L.all.every((p) => p.doc.getElementById('winner-text').dataset.team === winner));
+const winners = winner.split(', ');
+check('2t: game over with a winner', st.gameOver && winners.every((t) => ['red', 'blue'].includes(t)), winner);
+check('2t: winner has 0 cards left', winners.every((t) => st.cardsLeft[t] === 0));
+if (winners.length > 1) {
+    check('2t: modal shown in all tabs with tie heading', L.all.every((p) => !p.hidden('game-over-modal') && p.txt('winner-text').includes('WIN! (TIE)')));
+} else {
+    check('2t: modal shown in all tabs with "<TEAM> TEAM WINS!"', L.all.every((p) => !p.hidden('game-over-modal') && p.txt('winner-text') === `${winner.toUpperCase()} TEAM WINS!`));
+    check('2t: heading data-team=winner', L.all.every((p) => p.doc.getElementById('winner-text').dataset.team === winner));
+}
 check('2t: all cards revealed', st.cards.every((x) => x.revealed));
-check('2t: confetti only for winner tabs', L.all.every((p) => (p.w.confettiCalls > 0) === (p.st.myTeam === winner)), L.all.map((p) => p.w.confettiCalls).join());
+check('2t: confetti for winner tabs', L.all.every((p) => (p.w.confettiCalls > 0) === winners.includes(p.st.myTeam)), L.all.map((p) => p.w.confettiCalls).join());
 check('2t: pill "Game over", controls disabled', L.all.every((p) => p.txt('turn-indicator') === 'Game over' && p.doc.getElementById('end-turn-btn').disabled && p.doc.getElementById('submit-hint').disabled));
 check('2t: no card clickable after end', L.all.every((p) => [...p.doc.querySelectorAll('.card')].every((e) => e.disabled)));
 // play again
 L.P.red.gu.click('play-again-btn'); await settle();
 st = s(L);
-check('play again: new board 25, counts 8/8, modal hidden, not over, start ∈ teams', st.cards.length === 25 && st.cardsLeft.red === 8 && st.cardsLeft.blue === 8 && !st.gameOver && ['red', 'blue'].includes(st.turn) && L.all.every((p) => p.hidden('game-over-modal')));
+check('play again: new board 25, counts 9/9, modal hidden, not over, start ∈ teams', st.cards.length === 25 && st.cardsLeft.red === 9 && st.cardsLeft.blue === 9 && !st.gameOver && ['red', 'blue'].includes(st.turn) && L.all.every((p) => p.hidden('game-over-modal')));
 check('play again: chat reset "Game restarted!"', L.all[0].txt('chat-log').includes('Game restarted!'));
 check('play again: all players reset to guesser in start of next round', L.all.every((p) => p.st.myRole === 'guesser'));
 // assassin in 2-team
@@ -315,7 +331,7 @@ console.log('\n== 3-team game ==');
 L = await lobby(3);
 st = s(L);
 check('3t: 36 cards, grid 6, 6 cols', st.cards.length === 36 && st.grid === 6 && L.all[0].doc.getElementById('board').dataset.grid === '6');
-check('3t: 2 black, 8×3, 10 neutral', cnt2(st, 'black') === 2 && ['red', 'blue', 'green'].every((t) => cnt2(st, t) === 8) && cnt2(st, 'neutral') === 10);
+check('3t: 2 black, 10×3, 4 neutral', cnt2(st, 'black') === 2 && ['red', 'blue', 'green'].every((t) => cnt2(st, t) === 10) && cnt2(st, 'neutral') === 4);
 function cnt2(stt, t) { return stt.cards.filter((x) => x.team === t).length; }
 check('3t: 3 scores; create-team options: 3 visible? (join allowed green)', L.all[0].doc.querySelectorAll('.score').length === 3 && L.P.green.gu.st.myTeam === 'green');
 {
@@ -372,8 +388,8 @@ console.log('\n== 4-team game ==');
 L = await lobby(4);
 st = s(L);
 check('4t: 49 cards, grid 7', st.cards.length === 49 && st.grid === 7 && L.all[0].doc.getElementById('board').dataset.grid === '7');
-check('4t: 3 black, 9×4, 10 neutral', cnt2(st, 'black') === 3 && TEAMS.every((t) => cnt2(st, t) === 9) && cnt2(st, 'neutral') === 10);
-check('4t: 4 scores of 9', L.all[0].doc.querySelectorAll('.score').length === 4 && [...L.all[0].doc.querySelectorAll('.score-n')].every((e) => e.textContent === '9'));
+check('4t: 3 black, 10×4, 6 neutral', cnt2(st, 'black') === 3 && TEAMS.every((t) => cnt2(st, t) === 10) && cnt2(st, 'neutral') === 6);
+check('4t: 4 scores of 10', L.all[0].doc.querySelectorAll('.score').length === 4 && [...L.all[0].doc.querySelectorAll('.score-n')].every((e) => e.textContent === '10'));
 // turn order via End Turn ×5
 let seq = [s(L).turn];
 for (let i = 0; i < 5; i++) { const T = s(L).turn; await giveHintTo(L, T, 1); L.P[T].gu.click('end-turn-btn'); await settle(); seq.push(s(L).turn); }
@@ -393,7 +409,7 @@ check(`4t: 3 assassins → last team ${last} wins`, st.gameOver && st.winner ===
 L.P.red.gu.click('play-again-btn'); await settle();
 await playToEnd(L, '4t');
 st = s(L);
-check('4t: win by clearing all 9 own cards', st.gameOver && st.winner.split(', ').every((t) => st.cardsLeft[t] === 0) && st.cards.every((x) => x.revealed), st.winner);
+check('4t: win by clearing all 10 own cards', st.gameOver && st.winner.split(', ').every((t) => st.cardsLeft[t] === 0) && st.cards.every((x) => x.revealed), st.winner);
 
 // ═════════ S4: reconnect / refresh / tab close ═════════
 console.log('\n== S4: subscription + reconnect ==');
@@ -549,7 +565,7 @@ console.log('\n== Race: simultaneous reveals ==');
     const [r1, r2] = await Promise.all([0, 1].map((n) => be.rpc('reveal_card', { p_code: R.code, p_team: T, p_index: mine[n].k })));
     const ok = [r1, r2].filter((r) => r.data).length, bad = [r1, r2].filter((r) => r.error);
     const row = (await be.select(R.code)).data;
-    check('race DB: Promise.all of two reveal_card → exactly one success, one rejection, 1 card revealed, cards_left 8→7', ok === 1 && bad.length === 1 && /Not your turn|Wait for a hint/.test(bad[0].error.message) && row.board_cards.filter((x) => x.revealed).length === 1 && row.cards_left[T] === 7, JSON.stringify({ ok, bad: bad.map((b) => b.error.message), left: row.cards_left }));
+    check('race DB: Promise.all of two reveal_card → exactly one success, one rejection, 1 card revealed, cards_left 9→8', ok === 1 && bad.length === 1 && /Not your turn|Wait for a hint/.test(bad[0].error.message) && row.board_cards.filter((x) => x.revealed).length === 1 && row.cards_left[T] === 8, JSON.stringify({ ok, bad: bad.map((b) => b.error.message), left: row.cards_left }));
 }
 
 // ═════════ Reconnect exactly when End Turn RPC resolves ═════════
@@ -1153,9 +1169,9 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     await pRed.ev(`rpc('restart_game', { p_code: '${rCode}', p_cards: generateBoard(3), p_start_team: 'red' })`);
     await settle();
 
-    // Red's turn: clear ALL 8 Red cards!
+    // Red's turn: clear ALL 10 Red cards!
     const redCards = pRed.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'red');
-    await pRed.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'red', p_word: 'FIRE', p_n: 8 })`);
+    await pRed.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'red', p_word: 'FIRE', p_n: 10 })`);
     for (const c of redCards) {
         await pRed.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'red', p_index: ${c.i} })`);
     }
@@ -1165,9 +1181,9 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('end-of-round: Red cleared all cards, but game_over is FALSE mid-round', pRed.st.gameOver === false && pRed.st.cardsLeft.red === 0);
     check('end-of-round: turn passed to blue', pRed.st.turn === 'blue');
 
-    // Blue's turn: clear ALL 8 Blue cards!
+    // Blue's turn: clear ALL 10 Blue cards!
     const blueCards = pBlue.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'blue');
-    await pBlue.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'blue', p_word: 'WATER', p_n: 8 })`);
+    await pBlue.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'blue', p_word: 'WATER', p_n: 10 })`);
     for (const c of blueCards) {
         await pBlue.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'blue', p_index: ${c.i} })`);
     }
@@ -1268,6 +1284,137 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
 
     check('fallback-timer: card reveal does not reset timerStarted', pHost.st.timerStarted === true && pGuest.st.timerStarted === true);
     check('fallback-timer: card reveal does not reset turnStartedAt', activePlayer.st.turnStartedAt === tAfterHint && otherPlayer.st.turnStartedAt === tAfterHint);
+}
+
+// ═════════ Easy Mode & Thematic Clusters ═════════
+{
+    console.log('\n[easy mode & thematic clusters]');
+    const pLobby = mkPlayer('EasyTester');
+    check('easy-mode: option present in lobby create-mode select', pLobby.doc.querySelector('#create-mode option[value="easy"]') !== null);
+    check('easy-mode: 100+ thematic clusters available', pLobby.ev('EASY_CLUSTERS.length >= 100'));
+
+    const eSpy = await create('easy-spy', 2, 'red', 'spymaster', 'easy');
+    const eCode = eSpy.st.code;
+    const eGu = await join('easy-gu', eCode, 'red', 'guesser');
+    await settle();
+
+    const row = await be.select(eCode);
+    check('easy-mode: row saved with game_mode = easy', row.data.game_mode === 'easy');
+    check('easy-mode: badge displays EASY', eSpy.txt('display-game-mode') === 'EASY' && eGu.txt('display-game-mode') === 'EASY');
+
+    // Test board generation for Easy Mode in 2, 3, 4 teams
+    const b2 = eSpy.ev('generateBoard(2, undefined, "easy")');
+    check('easy-mode: 2-team has 25 cards, 9 red, 9 blue, 6 neutral, 1 black',
+        b2.length === 25 &&
+        b2.filter((c) => c.team === 'red').length === 9 &&
+        b2.filter((c) => c.team === 'blue').length === 9 &&
+        b2.filter((c) => c.team === 'neutral').length === 6 &&
+        b2.filter((c) => c.team === 'black').length === 1);
+
+    const b3 = eSpy.ev('generateBoard(3, undefined, "easy")');
+    check('easy-mode: 3-team has 36 cards, 10x3 teams, 4 neutral, 2 black',
+        b3.length === 36 &&
+        b3.filter((c) => c.team === 'red').length === 10 &&
+        b3.filter((c) => c.team === 'blue').length === 10 &&
+        b3.filter((c) => c.team === 'green').length === 10 &&
+        b3.filter((c) => c.team === 'neutral').length === 4 &&
+        b3.filter((c) => c.team === 'black').length === 2);
+
+    const b4 = eSpy.ev('generateBoard(4, undefined, "easy")');
+    check('easy-mode: 4-team has 49 cards, 10x4 teams, 6 neutral, 3 black',
+        b4.length === 49 &&
+        b4.filter((c) => c.team === 'red').length === 10 &&
+        b4.filter((c) => c.team === 'blue').length === 10 &&
+        b4.filter((c) => c.team === 'green').length === 10 &&
+        b4.filter((c) => c.team === 'cyan').length === 10 &&
+        b4.filter((c) => c.team === 'neutral').length === 6 &&
+        b4.filter((c) => c.team === 'black').length === 3);
+}
+
+// ═════════ Desktop Spymaster Lounge & Real-time Broadcast ═════════
+{
+    console.log('\n[spymaster lounge desktop channel & broadcast]');
+    const pRedSpy = await create('spy-r', 2, 'red', 'spymaster');
+    const code = pRedSpy.st.code;
+    const pRedGu = await join('gu-r', code, 'red', 'guesser');
+    const pBlueSpy = await join('spy-b', code, 'blue', 'spymaster');
+    await settle();
+
+    const spyPanelR = pRedSpy.doc.getElementById('spymaster-panel');
+    const spyPanelGu = pRedGu.doc.getElementById('spymaster-panel');
+    const spyPanelB = pBlueSpy.doc.getElementById('spymaster-panel');
+
+    check('spymaster-lounge: visible to red spymaster', spyPanelR && !spyPanelR.classList.contains('hidden'));
+    check('spymaster-lounge: visible to blue spymaster', spyPanelB && !spyPanelB.classList.contains('hidden'));
+    check('spymaster-lounge: hidden for guesser', spyPanelGu && spyPanelGu.classList.contains('hidden'));
+
+    // Red spymaster sends a message in the Spymaster Lounge
+    pRedSpy.val('spymaster-chat-input', 'Top secret code: alpha');
+    pRedSpy.doc.getElementById('spymaster-chat-form').dispatchEvent(new pRedSpy.w.Event('submit'));
+    await settle();
+
+    const logR = pRedSpy.doc.getElementById('spymaster-chat-log');
+    const logB = pBlueSpy.doc.getElementById('spymaster-chat-log');
+
+    check('spymaster-lounge: message rendered in sender log', logR.textContent.includes('Top secret code: alpha'));
+    check('spymaster-lounge: message received via broadcast in blue spymaster log', logB.textContent.includes('Top secret code: alpha'));
+
+    // Red spymaster steps down, then guesser steps up to spymaster -> panel becomes visible
+    pRedSpy.click('role-toggle-btn');
+    await settle();
+    pRedGu.click('role-toggle-btn');
+    await settle();
+    check('spymaster-lounge: panel becomes visible when guesser becomes spymaster', !pRedGu.doc.getElementById('spymaster-panel').classList.contains('hidden'));
+}
+
+// ═════════ Real-Time Guesser Card Selection Broadcast ═════════
+{
+    console.log('\n[real-time guesser card selection in chat]');
+    const pHost = await create('sel-host', 2, 'red', 'spymaster');
+    const code = pHost.st.code;
+    const pGuesser = await join('sel-guesser', code, 'red', 'guesser');
+    const pGuestSpy = await join('sel-blue', code, 'blue', 'spymaster');
+    await settle();
+
+    // Ensure red's turn with guesses
+    if (pHost.st.turn !== 'red') {
+        await pGuestSpy.ev(`rpc('give_hint', { p_code: '${code}', p_team: 'blue', p_word: 'PASS', p_n: 1 })`);
+        await pGuestSpy.ev(`rpc('end_turn', { p_code: '${code}', p_team: 'blue' })`);
+        await settle();
+    }
+    await pHost.ev(`rpc('give_hint', { p_code: '${code}', p_team: 'red', p_word: 'SELECT', p_n: 2 })`);
+    await settle();
+
+    const targetWord = pGuesser.st.cards[0].word;
+    pGuesser.card(0).click();
+    await settle();
+
+    const chatHost = pHost.txt('chat-log');
+    const chatGuesser = pGuesser.txt('chat-log');
+
+    check('guesser-select: card selection broadcast appears in host chat', chatHost.includes('selected') && chatHost.includes(targetWord));
+    check('guesser-select: card selection appears in guesser chat', chatGuesser.includes('selected') && chatGuesser.includes(targetWord));
+}
+
+// ═════════ Option B Grid Randomization ═════════
+{
+    console.log('\n[option b: zero-db-strain visual grid randomization]');
+    const pGrid = await create('grid-player', 2, 'red', 'guesser');
+    await settle();
+
+    const roomCode = 'TEST99';
+    const scrambleRed1 = pGrid.ev(`getVisualScramble('${roomCode}', 'red', 25)`);
+    const scrambleRed2 = pGrid.ev(`getVisualScramble('${roomCode}', 'red', 25)`);
+    const scrambleBlue = pGrid.ev(`getVisualScramble('${roomCode}', 'blue', 25)`);
+
+    check('scramble: deterministic for same team (red == red)', JSON.stringify(scrambleRed1) === JSON.stringify(scrambleRed2));
+    check('scramble: contains all indices 0..24', scrambleRed1.length === 25 && new Set(scrambleRed1).size === 25);
+    check('scramble: different visual order for different teams (red != blue)', JSON.stringify(scrambleRed1) !== JSON.stringify(scrambleBlue));
+
+    // Verify card DOM buttons have style.order set
+    const firstCard = pGrid.card(0);
+    const expectedOrder = pGrid.ev(`getVisualScramble('${pGrid.st.code}', 'red', 25)[0]`);
+    check('scramble: card element has style.order set', firstCard.style.order === String(expectedOrder));
 }
 
 // ═════════ error log ═════════

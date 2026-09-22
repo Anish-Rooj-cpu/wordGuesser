@@ -19,13 +19,21 @@
             const key = cfg?.config?.presence?.key || 'anon';
             const ch = {
                 handlers: [], state: {}, es: null,
-                on(type, opts, cb) { ch.handlers.push({ type, cb }); return ch; },
+                on(type, opts, cb) { ch.handlers.push({ type, opts, cb }); return ch; },
+                send(msg) {
+                    if (msg?.type === 'broadcast') {
+                        post('/api/broadcast', { room: name, event: msg.event, payload: msg.payload });
+                    }
+                },
                 subscribe(cb) {
-                    const fire = (type, arg) => ch.handlers.filter((h) => h.type === type).forEach((h) => h.cb(arg));
+                    const fire = (type, arg) => ch.handlers
+                        .filter((h) => h.type === type && (!h.opts?.event || h.opts.event === arg.event))
+                        .forEach((h) => h.cb(arg));
                     ch.es = new EventSource(`/api/sse?room=${encodeURIComponent(name)}&key=${encodeURIComponent(key)}`);
                     ch.es.addEventListener('ready', () => cb('SUBSCRIBED'));
                     ch.es.addEventListener('update', (e) => fire('postgres_changes', { new: JSON.parse(e.data) }));
                     ch.es.addEventListener('presence', (e) => { ch.state = JSON.parse(e.data); fire('presence'); });
+                    ch.es.addEventListener('broadcast', (e) => fire('broadcast', JSON.parse(e.data)));
                     ch.es.onerror = () => cb('CHANNEL_ERROR');
                     return ch;
                 },

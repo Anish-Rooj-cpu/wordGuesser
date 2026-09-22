@@ -20,7 +20,7 @@
         };
 
         const pool = Array.from({ length: 120 }, (_, i) => 'WORD' + String.fromCharCode(65 + (i % 26)) + Math.floor(i / 26));
-        const expected = { 2: { grid: 5, neutral: 8 }, 3: { grid: 6, neutral: 10 }, 4: { grid: 7, neutral: 10 } };
+        const expected = { 2: { grid: 5, neutral: 6 }, 3: { grid: 6, neutral: 4 }, 4: { grid: 7, neutral: 6 } };
         for (const teams of [2, 3, 4]) {
             let ok = true;
             for (let run = 0; run < 200 && ok; run++) {
