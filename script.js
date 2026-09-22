@@ -1,5 +1,5 @@
 // REPLACE THESE WITH YOUR SUPABASE DETAILS
-const https://hqlzsolcpqkvlithwpqk.supabase.co;
+const SUPABASE_URL = 'https://hqlzsolcpqkvlithwpqk.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_9vFkZLa0aOjbbfcdW_XkOg_T7lMITtd';
 
 // Initialize Supabase Client
