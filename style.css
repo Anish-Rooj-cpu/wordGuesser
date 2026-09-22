@@ -755,7 +755,11 @@ body.spymaster .card:not(.revealed)[data-team="black"]   { border-color: #555; b
     .card { font-size: .78rem; padding: 14px 6px; }
 }
 
-/* ── Small tablet / large phone (≤ 900px) ──── */
+/* ── Default Mobile Component Styles (Desktop: hidden) ── */
+.mobile-tabs { display: none; }
+.mobile-hint-banner { display: none; }
+
+/* ── Small tablet / landscape mobile (≤ 900px) ──── */
 @media (max-width: 900px) {
     /* Lobby */
     .lobby-panels { flex-direction: column; gap: 16px; }
@@ -765,103 +769,340 @@ body.spymaster .card:not(.revealed)[data-team="black"]   { border-color: #555; b
         padding: 4px 0;
     }
     .lobby-panel { padding: 22px; }
-
-    /* Game layout → stack vertically */
-    .game-body { flex-direction: column; overflow: auto; }
     .spymaster-panel { display: none !important; }
-    .board-area { padding: 16px; flex: none; }
-    .board { max-width: 100%; }
-    .chat-panel {
-        width: 100%; height: auto; max-height: 45vh; min-height: 200px;
-        border-left: none; border-top: 1px solid var(--border);
-        flex-shrink: 0;
-    }
-
-    /* Topbar */
-    .topbar { flex-wrap: wrap; gap: 10px; padding: 12px 16px; }
-    .topbar-left, .topbar-right { gap: 10px; }
-    .topbar-brand { font-size: .95rem; }
-    .scoreboard { gap: 10px; }
-    .score { font-size: .95rem; }
-    .turn-pill { font-size: .75rem; padding: 5px 12px; }
-    .btn-end-turn { padding: 6px 12px; font-size: .8rem; }
 }
 
-/* ── Phone (≤ 600px) ──────────────────────── */
-@media (max-width: 600px) {
-    html { font-size: 14px; }
+/* ── Mobile Phone & Tablet Portrait (≤ 768px) ────── */
+@media (max-width: 768px) {
+    /* Prevent iOS auto-zoom on input focus */
+    input[type="text"], input[type="number"], select, textarea {
+        font-size: 16px !important;
+    }
+
+    button, .card, .mobile-tab-btn, .badge-code {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
 
     /* Lobby */
-    #lobby-screen { padding: 20px 12px; }
-    .lobby-brand h1 { font-size: 2rem; }
-    .lobby-logo { font-size: 2.5rem; }
-    .lobby-panel { padding: 18px; gap: 14px; }
+    #lobby-screen { padding: 18px 12px; }
+    .lobby-brand h1 { font-size: 2.1rem; }
+    .lobby-logo { font-size: 2.4rem; }
+    .lobby-panel { padding: 18px; border-radius: var(--radius); gap: 12px; }
+    .field input, .field select, .btn { min-height: 44px; }
 
-    /* Topbar → two rows */
+    /* Topbar: Streamlined 2-tier mobile header */
     .topbar {
-        flex-direction: column; align-items: stretch;
-        gap: 8px; padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 8px 12px;
     }
-    .topbar-left { justify-content: center; flex-wrap: wrap; gap: 6px; }
-    .topbar-right { justify-content: space-between; align-items: center; flex-wrap: nowrap; gap: 8px; }
-    .topbar-brand { display: none; } /* save space on phone */
-    .topbar .badge { padding: 4px 8px; }
-    .topbar .badge-code { letter-spacing: 1px; }
-    .topbar .btn { padding: 8px 10px; }
-    .topbar .scoreboard { flex: 1 1 auto; min-width: 0; gap: 6px; }
-    .topbar .turn-pill { flex: 1 1 0; min-width: 0; text-align: center; font-size: .68rem; padding: 4px 8px; letter-spacing: .5px; }
-    .topbar .btn-end-turn { flex: none; }
-
-    /* Board */
-    .board-area { padding: 10px; }
-    .board { gap: 6px; }
-    .card {
-        padding: 10px 4px;
-        font-size: .68rem;
-        letter-spacing: 0;
+    .topbar-left {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+    }
+    .topbar-brand { display: none; }
+    .badge-code {
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        letter-spacing: 1px;
+    }
+    .badge-code::after {
+        content: '📋';
+        font-size: 0.75rem;
+    }
+    .badge-code:active {
+        transform: scale(0.95);
+    }
+    .topbar-left .btn {
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        min-height: 32px;
+    }
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+    }
+    .scoreboard {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .scoreboard::-webkit-scrollbar { display: none; }
+    .score { font-size: 0.95rem; }
+    .turn-pill {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        max-width: 150px;
+    }
+    .btn-end-turn {
+        flex: none;
+        padding: 7px 14px;
+        font-size: 0.82rem;
+        min-height: 34px;
         border-radius: 8px;
-        aspect-ratio: auto;
-        min-height: 48px;
-        /* a word that cannot fit on one line is split into two even halves (COMP/UTER), never a lone orphan letter */
-        word-break: break-all; overflow-wrap: normal; text-wrap: balance;
     }
 
-    /* Chat */
-    .chat-panel { height: auto; max-height: 45vh; min-height: 180px; }
-    #chat-log { flex: 1; min-height: 120px; }
-    .players-list { max-height: 72px; }
-    .chat-title { padding: 10px 14px; font-size: .9rem; }
-    .chat-log { padding: 10px; gap: 8px; }
-    .hint-msg { font-size: .82rem; padding: 8px 10px; }
-    .chat-input-row { padding: 10px 12px; gap: 6px; }
-    .chat-input-row input { padding: 8px 10px; font-size: .82rem; }
-    #hint-number { width: 42px; }
-    .btn-send { padding: 8px 12px; font-size: .8rem; }
+    /* Mobile Segmented Navigation Tabs */
+    .mobile-tabs {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+    .mobile-tab-btn {
+        flex: 1;
+        max-width: 240px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 9px 16px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-dim);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        position: relative;
+    }
+    .mobile-tab-btn.active {
+        color: var(--text);
+        background: var(--border);
+        border-color: var(--accent);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .tab-unread-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--red);
+        box-shadow: 0 0 8px var(--red);
+        position: absolute;
+        top: 6px;
+        right: 14px;
+        animation: pulse 1.5s infinite;
+    }
 
-    /* Modal */
-    .modal-card { padding: 30px 24px; width: min(92vw, 480px); overflow-wrap: anywhere; }
-    .modal-card h2 { font-size: clamp(1.4rem, 5vw, 2.2rem); }
-    .rules-card { padding: 24px; }
-    .board[data-grid="7"] .card { font-size: .66rem; min-height: 36px; padding: 6px 1px; line-height: 1.15; }
+    /* Glanceable Mobile Active Clue & Status Banner */
+    .mobile-hint-banner {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    .banner-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .banner-turn-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        background: var(--surface-2);
+        color: var(--text);
+    }
+    .banner-turn-badge[data-team="red"] { background: var(--red-soft); color: var(--red); }
+    .banner-turn-badge[data-team="blue"] { background: var(--blue-soft); color: var(--blue); }
+    .banner-turn-badge[data-team="green"] { background: var(--green-soft); color: var(--green); }
+    .banner-turn-badge[data-team="cyan"] { background: var(--cyan-soft); color: var(--cyan); }
+
+    .banner-timer-badge {
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: var(--surface-2);
+        color: var(--text);
+    }
+    .banner-timer-badge.low {
+        color: var(--red);
+        animation: pulse 1s infinite;
+    }
+    .banner-clue-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+    .banner-clue-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Game Layout & Mobile Tab Switching */
+    .game-body {
+        flex-direction: column;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .game-body[data-mobile-tab="board"] .board-area {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        padding: 10px 8px calc(70px + env(safe-area-inset-bottom, 0px)) 8px;
+    }
+    .game-body[data-mobile-tab="board"] .chat-panel {
+        display: contents;
+    }
+    .game-body[data-mobile-tab="board"] .chat-panel > *:not(#hint-controls) {
+        display: none !important;
+    }
+    .game-body[data-mobile-tab="board"] .chat-input-row#hint-controls.hidden {
+        display: none !important;
+    }
+
+    .game-body[data-mobile-tab="chat"] .board-area {
+        display: none !important;
+    }
+    .game-body[data-mobile-tab="chat"] .chat-panel {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        border-left: none;
+        border-top: none;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .game-body[data-mobile-tab="chat"] #chat-log {
+        flex: 1;
+        min-height: 250px;
+    }
+
+    /* Docked Spymaster Clue Bar on Board Tab */
+    body.spymaster .game-body[data-mobile-tab="board"] .chat-input-row#hint-controls:not(.hidden) {
+        display: flex !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        background: var(--surface);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.45);
+        border-top: 1px solid var(--border);
+        padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    /* Docked Suspense Mode Bar on Board */
+    .suspense-bar:not(.hidden) {
+        position: sticky;
+        bottom: 8px;
+        z-index: 40;
+        border-radius: var(--radius);
+        box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    }
+
+    /* Board & Cards Touch Polish */
+    .board-area { flex: none; width: 100%; }
+    .board { width: 100%; max-width: 100%; }
+    .board[data-grid="5"] { gap: 5px; }
+    .board[data-grid="5"] .card {
+        font-size: clamp(0.72rem, 2.9vw, 0.95rem);
+        min-height: 52px;
+        padding: 8px 3px;
+        border-radius: 8px;
+        hyphens: auto;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+    .board[data-grid="6"] { gap: 4px; }
+    .board[data-grid="6"] .card {
+        font-size: clamp(0.6rem, 2.3vw, 0.8rem);
+        min-height: 44px;
+        padding: 6px 2px;
+        border-radius: 6px;
+        hyphens: auto;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+    .board[data-grid="7"] { gap: 3px; }
+    .board[data-grid="7"] .card {
+        font-size: clamp(0.5rem, 1.8vw, 0.68rem);
+        min-height: 38px;
+        padding: 4px 1px;
+        border-radius: 5px;
+        line-height: 1.12;
+        hyphens: auto;
+        overflow-wrap: break-word;
+        word-break: normal;
+    }
+    .card:active:not([disabled]) {
+        transform: scale(0.95);
+        transition: transform 0.08s ease;
+    }
+
+    /* Modal dialogs */
+    .modal-card {
+        padding: 24px 18px;
+        width: min(94vw, 480px);
+        max-height: 85vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
-/* ── Tiny phone (≤ 400px) ─────────────────── */
+/* ── Extra Small Phones (≤ 400px) ─────────────────── */
 @media (max-width: 400px) {
-    .lobby-wrapper { max-width: 100%; }
-    .lobby-brand h1 { font-size: 1.7rem; }
-    .lobby-brand p { font-size: .85rem; }
-    .panel-header h2 { font-size: 1rem; }
-    .field label { font-size: .72rem; }
-    .field input, .field select { padding: 9px 10px; font-size: .88rem; }
-    .btn { padding: 10px 16px; font-size: .88rem; }
-
-    .board-area { padding: 3px; }
-    .board { gap: 2px; }
-    .card { font-size: .74rem; min-height: 40px; padding: 8px 2px; }
-    .board[data-grid="6"] .card { font-size: .7rem; padding: 10px 2px; }
-    .board[data-grid="7"] .card { font-size: .62rem; }
-    .badge { padding: 4px 10px; font-size: .7rem; }
-    .score { font-size: .85rem; }
+    .topbar { padding: 6px 8px; gap: 5px; }
+    .topbar-left { gap: 4px; }
+    .topbar .badge { padding: 3px 6px; font-size: 0.68rem; }
+    .topbar-left .btn { padding: 4px 8px; font-size: 0.72rem; }
+    .scoreboard { gap: 6px; }
+    .score { font-size: 0.85rem; }
+    .btn-end-turn { padding: 6px 10px; font-size: 0.78rem; }
+    .board[data-grid="5"] { gap: 4px; }
+    .board[data-grid="5"] .card { font-size: 0.7rem; min-height: 46px; }
+    .board[data-grid="6"] { gap: 3px; }
+    .board[data-grid="6"] .card { font-size: 0.58rem; min-height: 40px; }
+    .board[data-grid="7"] { gap: 2px; }
+    .board[data-grid="7"] .card { font-size: 0.48rem; min-height: 34px; }
 }
 
 /* ── Connecting state (S4) ─────────────────── */

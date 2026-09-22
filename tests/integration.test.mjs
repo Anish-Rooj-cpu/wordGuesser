@@ -1458,6 +1458,47 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('cleanup: newly created game is present and active', pFresh.st.code.length === 6);
 }
 
+// ═════════ Mobile UI & UX Enhancements ═════════
+{
+    console.log('\n[mobile UI & UX enhancements]');
+    const pMob = await create('mobile-user', 2, 'red', 'guesser');
+    await settle();
+
+    // 1. Mobile tab navigation
+    const tabBoard = pMob.doc.getElementById('tab-btn-board');
+    const tabChat = pMob.doc.getElementById('tab-btn-chat');
+    const bodyEl = pMob.doc.getElementById('game-body');
+    const bannerEl = pMob.doc.getElementById('mobile-hint-banner');
+    const turnBadge = pMob.doc.getElementById('banner-turn-badge');
+    const clueText = pMob.doc.getElementById('banner-clue-text');
+
+    check('mobile: tab elements exist in DOM', !!tabBoard && !!tabChat && !!bodyEl);
+    check('mobile: default active tab is board', bodyEl.dataset.mobileTab === 'board');
+    check('mobile: board button marked active and selected', tabBoard.classList.contains('active') && tabBoard.getAttribute('aria-selected') === 'true');
+
+    // Switch to Chat tab
+    tabChat.click();
+    check('mobile: clicking chat tab sets data-mobile-tab to chat', bodyEl.dataset.mobileTab === 'chat');
+    check('mobile: chat button marked active', tabChat.classList.contains('active') && tabChat.getAttribute('aria-selected') === 'true');
+    check('mobile: board button marked inactive', !tabBoard.classList.contains('active') && tabBoard.getAttribute('aria-selected') === 'false');
+
+    // Switch back to Board tab
+    tabBoard.click();
+    check('mobile: clicking board tab returns to board', bodyEl.dataset.mobileTab === 'board');
+
+    // 2. Mobile Active Clue & Status Banner
+    check('mobile: banner exists in DOM', !!bannerEl && !!turnBadge && !!clueText);
+    check('mobile: banner turn badge reflects current team', turnBadge.textContent.toUpperCase().includes('TURN'));
+
+    // 3. Room code tap-to-copy
+    const codeBadge = pMob.doc.getElementById('display-game-id');
+    check('mobile: code badge has role=button and title', codeBadge.getAttribute('role') === 'button' && !!codeBadge.getAttribute('title'));
+    codeBadge.click();
+    await settle();
+    const toast = pMob.txt('toast');
+    check('mobile: clicking code badge triggers room code toast', toast.includes(pMob.st.code));
+}
+
 // ═════════ error log ═════════
 console.log(`\nJS/console errors captured: ${errors.length}`);
 errors.slice(0, 10).forEach((e) => console.log('  ', e));

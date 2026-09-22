@@ -120,7 +120,7 @@
         <header class="topbar">
             <div class="topbar-left">
                 <h1 class="topbar-brand">🕵️ Codenames</h1>
-                <span class="badge badge-code" id="display-game-id"></span>
+                <span class="badge badge-code" id="display-game-id" title="Tap to copy game code" role="button" tabindex="0"></span>
                 <span class="badge badge-mode" id="display-game-mode"></span>
                 <span class="badge badge-role" id="player-info-badge"></span>
                 <button id="start-timer-btn" class="btn btn-primary btn-small btn-start-timer hidden">▶ Start Timer</button>
@@ -135,8 +135,19 @@
             </div>
         </header>
 
+        <!-- Mobile Navigation Tabs (visible on <= 768px) -->
+        <nav class="mobile-tabs" id="mobile-tabs" role="tablist" aria-label="Game view tabs">
+            <button class="mobile-tab-btn active" id="tab-btn-board" role="tab" aria-selected="true" aria-controls="board-area">
+                <span class="tab-icon" aria-hidden="true">🃏</span> Board
+            </button>
+            <button class="mobile-tab-btn" id="tab-btn-chat" role="tab" aria-selected="false" aria-controls="chat-panel">
+                <span class="tab-icon" aria-hidden="true">💬</span> Chat &amp; Players
+                <span class="tab-unread-dot hidden" id="chat-unread-dot" aria-label="New messages"></span>
+            </button>
+        </nav>
+
         <!-- Board + Sidebar -->
-        <div class="game-body">
+        <div class="game-body" id="game-body" data-mobile-tab="board">
             <!-- Spymaster Lounge (Desktop only, Spymaster role only) -->
             <aside class="spymaster-panel hidden" id="spymaster-panel" aria-label="Spymaster channel">
                 <div class="spymaster-panel-header">
@@ -152,7 +163,19 @@
                 </form>
             </aside>
 
-            <div class="board-area" role="main">
+            <div class="board-area" id="board-area" role="main">
+                <!-- Mobile Active Clue & Status Banner -->
+                <div id="mobile-hint-banner" class="mobile-hint-banner" role="status" aria-live="polite">
+                    <div class="banner-status-row">
+                        <span class="banner-turn-badge" id="banner-turn-badge">Red's Turn</span>
+                        <span class="banner-timer-badge hidden" id="banner-timer-badge">⏳ 1:00</span>
+                    </div>
+                    <div class="banner-clue-row" id="banner-clue-row">
+                        <span class="banner-clue-label" aria-hidden="true">🎯</span>
+                        <span class="banner-clue-text" id="banner-clue-text">Waiting for Spymaster hint…</span>
+                    </div>
+                </div>
+
                 <div id="board" class="board" role="group" aria-label="Word board" tabindex="-1"></div>
                 <div id="suspense-controls" class="suspense-bar hidden" role="toolbar" aria-label="Suspense mode guess submission">
                     <span id="suspense-count" class="suspense-count">Selected: 0 words</span>

@@ -31,6 +31,11 @@ const connectError = $('connect-error'), connectRetry = $('connect-retry'), conn
 const themeToggleLobby = $('theme-toggle-lobby'), themeToggleGame = $('theme-toggle-game');
 const roleToggleBtn = $('role-toggle-btn'), teamSpymasterBanner = $('team-spymaster-banner');
 const startTimerBtn = $('start-timer-btn');
+const mobileTabs = $('mobile-tabs'), tabBtnBoard = $('tab-btn-board'), tabBtnChat = $('tab-btn-chat');
+const gameBodyEl = $('game-body'), chatUnreadDot = $('chat-unread-dot');
+const mobileHintBanner = $('mobile-hint-banner'), bannerTurnBadge = $('banner-turn-badge');
+const bannerTimerBadge = $('banner-timer-badge'), bannerClueText = $('banner-clue-text');
+const displayGameId = $('display-game-id');
 const selectedCards = new Set();
 
 // ── Theme management ──
@@ -322,6 +327,7 @@ async function enterGame(row, { name, team, role, isHost = false }) {
         saveSession();
         history.replaceState(null, '', '?code=' + row.game_code);
 
+        setMobileTab('board');
         swapScreens(true);
         boardEl.focus(); // the lobby just disappeared; keep keyboard/screen-reader users in the game
         $('display-game-id').textContent = row.game_code;
@@ -393,6 +399,7 @@ async function leaveGame() {
     const spyLogLeave = $('spymaster-chat-log');
     if (spyLogLeave) spyLogLeave.replaceChildren();
     swapScreens(false);
+    setMobileTab('board');
     gameOverOpener = null;
     gameOverModal.classList.add('hidden');
     rulesModal.classList.add('hidden');
@@ -521,6 +528,11 @@ function tickTimer() {
     const left = Math.max(0, Math.ceil((g.turnStartedAt + g.turnSeconds * 1000 - Date.now()) / 1000));
     el.textContent = `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     el.classList.toggle('low', left <= 10);
+    if (bannerTimerBadge) {
+        bannerTimerBadge.classList.toggle('hidden', false);
+        bannerTimerBadge.textContent = `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+        bannerTimerBadge.classList.toggle('low', left <= 10);
+    }
     if (left === 0 && Date.now() - timeoutCallAt > 2000) {
         timeoutCallAt = Date.now();
         const code = g.code;
@@ -602,6 +614,38 @@ function updateUI() {
     hintWordInput.disabled = hintNumberInput.disabled = submitHintBtn.disabled = !(myRole === 'spymaster' && myTurn && n === 0);
     updateSuspenseControls();
     updateStartTimerControl();
+    updateMobileBanner();
+}
+
+function updateMobileBanner() {
+    if (!mobileHintBanner) return;
+    const g = gameState;
+    if (bannerTurnBadge) {
+        bannerTurnBadge.dataset.team = g.turn;
+        bannerTurnBadge.textContent = g.gameOver ? 'GAME OVER' : `${teamLabel(g.turn).toUpperCase()}'S TURN`;
+    }
+    if (bannerClueText) {
+        if (g.gameOver) {
+            bannerClueText.textContent = g.winner ? `🏆 Winner: ${g.winner.toUpperCase()}!` : 'Game Over';
+        } else if (g.guessesRemaining > 0) {
+            let lastHint = '';
+            if (Array.isArray(g.chatLog)) {
+                for (let i = g.chatLog.length - 1; i >= 0; i--) {
+                    const m = g.chatLog[i];
+                    if (m && m.type === 'hint' && typeof m.text === 'string') {
+                        lastHint = m.text;
+                        break;
+                    }
+                }
+            }
+            const n = g.guessesRemaining;
+            bannerClueText.textContent = lastHint
+                ? `${lastHint} (${n} ${n === 1 ? 'guess' : 'guesses'} left)`
+                : `${n} ${n === 1 ? 'guess' : 'guesses'} left`;
+        } else {
+            bannerClueText.textContent = `Waiting for ${teamLabel(g.turn)} Spymaster hint…`;
+        }
+    }
 }
 
 // Chat entries come from the database. Render what is well-formed and never throw on the rest, so one bad entry
@@ -622,7 +666,12 @@ function announceNewChat() {
         .filter((m) => entryText(m).trim() && !(m.type === 'system' && / team's turn$/.test(m.text))) // the turn pill announces those
         .map((m) => (m.type === 'chat' ? `${entryName(m)}, ${isTeam(m.team) ? m.team : '?'}: ${m.text}`
             : m.type === 'hint' ? `${teamOrQ(m.team)} spymaster hint: ${m.text}` : m.text));
-    if (lines.length) announce(lines.join('. '));
+    if (lines.length) {
+        announce(lines.join('. '));
+        if (chatUnreadDot && gameBodyEl && gameBodyEl.dataset.mobileTab === 'board') {
+            chatUnreadDot.classList.remove('hidden');
+        }
+    }
 }
 
 function chatLine(msg) {
@@ -1099,6 +1148,44 @@ leaveBtn.addEventListener('click', () => {
     announce('Press Leave again to confirm');
     leaveTimer = setTimeout(() => { leaveTimer = null; leaveBtn.textContent = 'Leave'; }, 3000);
 });
+
+// ── Mobile tab switching ──
+function setMobileTab(tab) {
+    if (!gameBodyEl) return;
+    gameBodyEl.dataset.mobileTab = tab;
+    if (tabBtnBoard && tabBtnChat) {
+        tabBtnBoard.classList.toggle('active', tab === 'board');
+        tabBtnBoard.setAttribute('aria-selected', tab === 'board');
+        tabBtnChat.classList.toggle('active', tab === 'chat');
+        tabBtnChat.setAttribute('aria-selected', tab === 'chat');
+    }
+    if (tab === 'chat' && chatUnreadDot) {
+        chatUnreadDot.classList.add('hidden');
+    }
+}
+if (tabBtnBoard) tabBtnBoard.addEventListener('click', () => setMobileTab('board'));
+if (tabBtnChat) tabBtnChat.addEventListener('click', () => setMobileTab('chat'));
+
+// ── Tap to copy room code ──
+if (displayGameId) {
+    const copyCode = () => {
+        const code = gameState.code || displayGameId.textContent.trim();
+        if (!code) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(() => {
+                showToast(`Copied room code: ${code}`);
+            }).catch(() => {
+                showToast(`Room code: ${code}`);
+            });
+        } else {
+            showToast(`Room code: ${code}`);
+        }
+    };
+    displayGameId.addEventListener('click', copyCode);
+    displayGameId.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copyCode(); }
+    });
+}
 
 // Rules modal
 let rulesOpener = null;
