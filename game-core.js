@@ -169,8 +169,26 @@ function generateBoard(teams, pool = words, mode = 'normal') {
         return shuffle(cards);
     }
 
-    // Normal / Suspense Mode
-    const picked = shuffle([...pool]).slice(0, n);
+    // SSS Mode / Adult Mode / Normal / Suspense Mode
+    let activePool = pool;
+    if (mode === 'sss' || mode === 'adult') {
+        const custom = (typeof adultWords !== 'undefined' && Array.isArray(adultWords) && adultWords.length > 0)
+            ? adultWords
+            : (Array.isArray(pool) && pool.length > 0 ? pool : (typeof words !== 'undefined' ? words : []));
+        const cleaned = custom
+            .map((w) => String(w || '').trim().toUpperCase())
+            .filter((w) => w.length > 0);
+        const unique = [...new Set(cleaned)];
+        if (unique.length < n) {
+            const used = new Set(unique);
+            const fallback = (typeof words !== 'undefined' && Array.isArray(words) ? words : pool).filter((w) => !used.has(w));
+            activePool = [...unique, ...shuffle([...fallback])];
+        } else {
+            activePool = unique;
+        }
+    }
+
+    const picked = shuffle([...activePool]).slice(0, n);
     const labels = [];
     for (let i = 0; i < black; i++) labels.push('black');
     TEAMS.slice(0, teams).forEach((t) => { for (let i = 0; i < perTeam; i++) labels.push(t); });

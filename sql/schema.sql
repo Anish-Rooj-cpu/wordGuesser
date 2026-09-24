@@ -14,7 +14,7 @@ create table games (
   chat_log          jsonb not null default '[]'::jsonb,
   game_over         boolean not null default false,
   winner            text not null default '',       -- team id or ''
-  game_mode         text not null default 'normal' check (game_mode in ('normal', 'suspense', 'easy')),
+  game_mode         text not null default 'normal' check (game_mode in ('normal', 'suspense', 'easy', 'adult', 'sss')),
   host_name         text not null default '',
   timer_started     boolean not null default false,
   turn_seconds      int  not null default 0 check (turn_seconds between 0 and 600), -- 0 = untimed

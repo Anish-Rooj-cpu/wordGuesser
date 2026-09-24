@@ -1,0 +1,108 @@
+// Adult Mode (18+) Word Pool
+// ==========================================
+// HOW TO ADD YOUR WORDS:
+// 1. Put each word inside quotes (single ' ' or double " ").
+// 2. Separate each word with a comma (,).
+// 3. Words can be uppercase or lowercase (they are automatically capitalized in-game).
+// 4. Single words or hyphenated compounds work best (e.g., 'BONDAGE', 'ROLE-PLAY').
+//
+// Minimum recommended: 25 words (for 2-team 5x5 grid), 36 words (for 3-team 6x6), 49 words (for 4-team 7x7).
+// If fewer words are provided, the game will automatically backfill from the regular dictionary.
+// ==========================================
+
+const adultWords = [
+    "Mother",
+    "Sister",
+    "Daughter",
+    "Aunt",
+    "Gyaru",
+    "Maid",
+    "Mouth",
+    "Pleasure",
+    "NTR",
+    "Ecchi",
+    "Fan service",
+    "Harem",
+    "Lolicon",
+    "Seinen",
+    "Yonai",
+    "Cheater",
+    "Jealousy",
+    "Love triangle",
+    "Possessive",
+    "Revenge",
+    "Betrayal",
+    "Kiss",
+    "Intercourse",
+    "Orgasm",
+    "Lust",
+    "Craving",
+    "Yearning",
+    "Love",
+    "Date",
+    "Boyfriend",
+    "Girlfriend",
+    "PDA",
+    "Hugs",
+    "Cuddle",
+    "Kisses",
+    "Snuggle",
+    "Lovin'",
+    "Intimacy",
+    "Passion",
+    "Ecstatic",
+    "Euphoric",
+    "Thrilled",
+    "Delighted",
+    "Charming",
+    "Captivating",
+    "Family bond",
+    "Blushing cheeks",
+    "Sweaty palms",
+    "Heart racing",
+    "Steamy encounter",
+    "Forbidden love",
+    "Fantasy fulfillment",
+    "Sensual delight",
+    "Erotic bliss",
+    "Passionate pursuit",
+    "Romantic escapade",
+    "Intimate connection",
+    "Possessive behavior",
+    "Heartbreak",
+    "Shoujo",
+    "Yaoi",
+    "Shojo-ai",
+    "Josei",
+    "BL (Boys' Love)",
+    "Lustful gaze",
+    "Temptation",
+    "Allure",
+    "Seductive smile",
+    "Whispered promises",
+    "Intimate moments",
+    "Anger",
+    "Fan art",
+    "Doujinshi",
+    "Cosplay",
+    "Manga",
+    "Anime",
+    "Illustration",
+    "Shock",
+    "Sadness",
+    "Confusion",
+    "Disgust",
+    "Tsundere",
+    "Yandere",
+    "Loli",
+    "Affection",
+    "Adoration",
+    "Devotion",
+    "Commitment",
+    "Loyalty"
+];
+
+// Expose to window for browser access
+if (typeof window !== 'undefined') {
+    window.adultWords = adultWords;
+}

@@ -8,6 +8,7 @@
 <body>
     <!-- Pure-logic checks on game-core.js. No Supabase, no DOM from the app. Open directly or via any static server. -->
     <pre id="out"></pre>
+    <script src="adult-words.js"></script>
     <script src="game-core.js"></script>
     <script>
     (async () => {
@@ -47,6 +48,9 @@
             check(`words: ${words.length} entries, >= 500, all unique, uppercase letters only`, words.length >= 500 && new Set(words).size === words.length && words.every((w) => /^[A-Z]+$/.test(w)));
             check('words: no team-colour names or listed function words', !['RED', 'BLUE', 'GREEN', 'CYAN', 'YELLOW', 'WHITE', 'BLACK', 'WHEREAS'].some((w) => words.includes(w)));
             check('generateBoard(4) works on the real list', generateBoard(4, words).length === 49);
+            const adultTestList = Array.from({ length: 30 }, (_, i) => 'ADULT' + i);
+            const bSss = generateBoard(2, adultTestList, 'sss');
+            check('generateBoard(2, adultTestList, "sss") works with 25 cards', bSss.length === 25 && new Set(bSss.map(c => c.word)).size === 25);
         } catch (e) {
             check('words: script.js readable over http (serve this folder, file:// blocks fetch)', false);
         }

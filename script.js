@@ -164,7 +164,8 @@ async function createGame() {
     const gameMode = createModeSelect ? createModeSelect.value : 'normal';
     const team = createTeamSelect.value, role = 'guesser';
     const turnSeconds = parseInt($('create-timer').value, 10) || 0;
-    const cards = generateBoard(teams, words, gameMode);
+    const pool = (gameMode === 'sss' || gameMode === 'adult') && typeof adultWords !== 'undefined' ? adultWords : words;
+    const cards = generateBoard(teams, pool, gameMode);
     const cardsLeft = {};
     cards.forEach((c) => { if (c.team !== 'neutral' && c.team !== 'black') cardsLeft[c.team] = (cardsLeft[c.team] || 0) + 1; });
     const turn = TEAMS[Math.floor(Math.random() * teams)];
@@ -1070,13 +1071,14 @@ async function playAgain() {
     playAgainBtn.textContent = 'Restarting...';
     try {
         const startTeam = TEAMS[Math.floor(Math.random() * gameState.teams)];
+        const pool = (gameState.gameMode === 'sss' || gameState.gameMode === 'adult') && typeof adultWords !== 'undefined' ? adultWords : words;
         const res = await rpc('restart_game', {
             p_code: gameState.code,
-            p_cards: generateBoard(gameState.teams, words, gameState.gameMode || 'normal'),
+            p_cards: generateBoard(gameState.teams, pool, gameState.gameMode || 'normal'),
             p_start_team: startTeam
         });
         if (!res) {
-            await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams, words, gameState.gameMode || 'normal') });
+            await rpc('restart_game', { p_code: gameState.code, p_cards: generateBoard(gameState.teams, pool, gameState.gameMode || 'normal') });
         }
     } finally {
         playAgainBtn.disabled = false;

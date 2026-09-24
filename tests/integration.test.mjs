@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const html = fs.readFileSync(`${ROOT}/index.html`, 'utf8').replace(/<script[\s\S]*?<\/script>/g, '');
-const js = fs.readFileSync(`${ROOT}/game-core.js`, 'utf8') + '\n' + fs.readFileSync(`${ROOT}/script.js`, 'utf8'); // same order as index.html
+const js = (fs.existsSync(`${ROOT}/adult-words.js`) ? fs.readFileSync(`${ROOT}/adult-words.js`, 'utf8') + '\n' : '')
+    + fs.readFileSync(`${ROOT}/game-core.js`, 'utf8') + '\n'
+    + fs.readFileSync(`${ROOT}/script.js`, 'utf8'); // same order as index.html
 
 const be = await createBackend();
 const pg = be.pg;
@@ -1171,7 +1173,7 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
 
     // Red's turn: clear ALL 10 Red cards!
     const redCards = pRed.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'red');
-    await pRed.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'red', p_word: 'FIRE', p_n: 10 })`);
+    await pRed.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'red', p_word: 'HINTRED', p_n: 10 })`);
     for (const c of redCards) {
         await pRed.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'red', p_index: ${c.i} })`);
     }
@@ -1183,7 +1185,7 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
 
     // Blue's turn: clear ALL 10 Blue cards!
     const blueCards = pBlue.st.cards.map((c, i) => ({ ...c, i })).filter((c) => c.team === 'blue');
-    await pBlue.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'blue', p_word: 'WATER', p_n: 10 })`);
+    await pBlue.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'blue', p_word: 'HINTBLUE', p_n: 10 })`);
     for (const c of blueCards) {
         await pBlue.ev(`rpc('reveal_card', { p_code: '${rCode}', p_team: 'blue', p_index: ${c.i} })`);
     }
@@ -1194,7 +1196,7 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
     check('end-of-round: turn passed to green', pRed.st.turn === 'green');
 
     // Green takes their turn, gives a hint, but ends turn without clearing all cards
-    await pGreen.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'green', p_word: 'EARTH', p_n: 1 })`);
+    await pGreen.ev(`rpc('give_hint', { p_code: '${rCode}', p_team: 'green', p_word: 'HINTGREEN', p_n: 1 })`);
     await pGreen.ev(`rpc('end_turn', { p_code: '${rCode}', p_team: 'green' })`);
     await settle();
 
@@ -1329,6 +1331,32 @@ console.log('\n[suspense mode & 15-char hint limit & turn continuation]');
         b4.filter((c) => c.team === 'cyan').length === 10 &&
         b4.filter((c) => c.team === 'neutral').length === 6 &&
         b4.filter((c) => c.team === 'black').length === 3);
+}
+
+// ═════════ SSS Mode ═════════
+{
+    console.log('\n[sss mode]');
+    const pLobby = mkPlayer('SSSTester');
+    check('sss-mode: option present in lobby create-mode select', pLobby.doc.querySelector('#create-mode option[value="sss"]') !== null);
+    check('sss-mode: adultWords pool available and populated', pLobby.ev('typeof adultWords !== "undefined" && adultWords.length >= 25'));
+
+    const aSpy = await create('sss-spy', 2, 'red', 'spymaster', 'sss');
+    const aCode = aSpy.st.code;
+    const aGu = await join('sss-gu', aCode, 'red', 'guesser');
+    await settle();
+
+    const row = await be.select(aCode);
+    check('sss-mode: row saved with game_mode = sss', row.data.game_mode === 'sss');
+    check('sss-mode: badge displays SSS', aSpy.txt('display-game-mode') === 'SSS' && aGu.txt('display-game-mode') === 'SSS');
+
+    const b2 = aSpy.ev('generateBoard(2, adultWords, "sss")');
+    check('sss-mode: 2-team has 25 cards using adult words',
+        b2.length === 25 &&
+        b2.filter((c) => c.team === 'red').length === 9 &&
+        b2.filter((c) => c.team === 'blue').length === 9 &&
+        b2.filter((c) => c.team === 'neutral').length === 6 &&
+        b2.filter((c) => c.team === 'black').length === 1 &&
+        b2.every((c) => typeof c.word === 'string' && c.word.length > 0));
 }
 
 // ═════════ Desktop Spymaster Lounge & Real-time Broadcast ═════════

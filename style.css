@@ -329,6 +329,12 @@ body {
     color: #10b981;
     background: rgba(16, 185, 129, 0.12);
 }
+.badge-mode.adult,
+.badge-mode.sss {
+    border-color: #ec4899;
+    color: #ec4899;
+    background: rgba(236, 72, 153, 0.12);
+}
 .badge-role { background: var(--accent); color: #fff; text-transform: uppercase; letter-spacing: .5px; }
 
 /* ── Scoreboard ──────────────────────────────── */
